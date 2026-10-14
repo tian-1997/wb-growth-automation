@@ -277,6 +277,11 @@ def push_wecom(checkin, travel):
         t_lines,
     )
     payload = {"msgtype": "markdown", "markdown": {"content": content}}
+    # 云端续签写回失败时附一行告警（自动续期链约 60 天后会断）
+    if os.environ.get("WB_RENEW_WARN") == "1":
+        content += ("\n> ⚠️ 凭证自动续期写回失败（检查 WB_GH_PAT），"
+                    "约 60 天后需按 README 重新播种 WB_REFRESH_TOKEN")
+        payload = {"msgtype": "markdown", "markdown": {"content": content}}
     req = urllib.request.Request(
         WEBHOOK, method="POST",
         data=json.dumps(payload).encode("utf-8"),

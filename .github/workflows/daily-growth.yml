@@ -33,9 +33,38 @@ jobs:
           echo "python=$PY" >> "$GITHUB_OUTPUT"
           "$PY" --version
 
+      - name: Renew access token (seamless, optional)
+        id: renew
+        continue-on-error: true
+        env:
+          WB_REFRESH_TOKEN: ${{ secrets.WB_REFRESH_TOKEN }}
+          WB_GH_PAT: ${{ secrets.WB_GH_PAT }}
+        run: |
+          if [ -z "${WB_REFRESH_TOKEN:-}" ]; then
+            echo "未配置 WB_REFRESH_TOKEN，跳过无感续签，回退 WB_TOKEN"
+            exit 0
+          fi
+          set +e
+          AT=$("${{ steps.py.outputs.python }}" scripts/renew_token.py)
+          RC=$?
+          set -e
+          if [ "$RC" -eq 0 ] || [ "$RC" -eq 2 ]; then
+            echo "::add-mask::$AT"
+            echo "WB_TOKEN=$AT" >> "$GITHUB_ENV"
+            if [ "$RC" -eq 2 ]; then
+              echo "::warning::续签成功但 secret 写回失败，自动续期链约 60 天后会断"
+              echo "WB_RENEW_WARN=1" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "::warning::token 续签失败，本次回退到 WB_TOKEN"
+            exit 1
+          fi
+
       - name: Run daily growth automation
         env:
-          WB_TOKEN: ${{ secrets.WB_TOKEN }}
+          # 续签成功用新 token，否则回退 secret 里的 WB_TOKEN
+          WB_TOKEN: ${{ env.WB_TOKEN || secrets.WB_TOKEN }}
+          WB_RENEW_WARN: ${{ env.WB_RENEW_WARN }}
           WB_WECOM_WEBHOOK: ${{ secrets.WB_WECOM_WEBHOOK }}
           # 可选：指定派猫目的地 id；缺省自动取第一个地点
           WB_TRAVEL_LOCATION_ID: ${{ secrets.WB_TRAVEL_LOCATION_ID }}

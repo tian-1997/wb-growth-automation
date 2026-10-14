@@ -7,7 +7,11 @@ refresh_token.py — 从 WorkBuddy 本机登录态导出当前 accessToken（JWT
   在你有登录态的这台 Windows 机器上运行，把 token 打到 stdout，
   再管道进 `gh secret set` 注入 GitHub 仓库 secret。例如：
 
+      python refresh_token.py            # 导出 accessToken -> WB_TOKEN
+      python refresh_token.py refresh    # 导出 refreshToken -> WB_REFRESH_TOKEN（无感续签用）
+
       python refresh_token.py | gh secret set WB_TOKEN --repo <owner>/<repo>
+      python refresh_token.py refresh | gh secret set WB_REFRESH_TOKEN --repo <owner>/<repo>
 
   也可以用环境变量直接设 secret（GitHub Actions 不读本机，只读 secret）：
       python refresh_token.py > /tmp/wb_token.txt   # 仅你本机临时文件，勿提交
@@ -52,9 +56,17 @@ def main() -> int:
         sys.stderr.write("读取登录态失败：%s\n" % e)
         return 2
 
-    token = (data.get("auth") or {}).get("accessToken") or ""
+    field = "access"
+    if len(sys.argv) > 1:
+        field = sys.argv[1].strip().lower()
+    key = {"access": "accessToken", "refresh": "refreshToken"}.get(field)
+    if not key:
+        sys.stderr.write("用法：refresh_token.py [access|refresh]\n")
+        return 2
+
+    token = (data.get("auth") or {}).get(key) or ""
     if not token:
-        sys.stderr.write("登录态里没有 auth.accessToken，可能未登录或结构已变。\n")
+        sys.stderr.write("登录态里没有 auth.%s，可能未登录或结构已变。\n" % key)
         return 3
 
     # 基本健全性检查：JWT 应是三段 base64url

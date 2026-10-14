@@ -3,6 +3,7 @@
 #
 # 用法（在本机、已登录 WorkBuddy 的机器上）：
 #   sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
+#   sh run_refresh.sh refresh | gh secret set WB_REFRESH_TOKEN --repo <owner>/<repo>
 # 或先落临时文件再设 secret：
 #   sh run_refresh.sh > wb_token.txt
 #
@@ -22,4 +23,4 @@ fi
 # 不要用 "$SCRIPT_DIR/refresh_token.py"：Git Bash/MSYS 会把 /c/... 这类
 # POSIX 路径错误转换成 C:\c\...，导致 python 找不到文件。
 cd "$SCRIPT_DIR" || exit 1
-exec "$PY" refresh_token.py
+exec "$PY" refresh_token.py "$@"

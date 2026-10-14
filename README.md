@@ -17,8 +17,9 @@
 wb-growth-automation/
 ├── .github/workflows/daily-growth.yml   # GitHub Actions 定时任务
 └── scripts/
-    ├── refresh_token.py                 # 本机导出 token（只写 stdout，不落盘）
+    ├── refresh_token.py                 # 本机导出 token（access/refresh 两种，只写 stdout）
     ├── run_refresh.sh                   # command -v 动态取 python 跑上面的脚本
+    ├── renew_token.py                   # 云端无感续签：RT 换新 AT 并写回 secret
     ├── daily_growth.py                  # 核心自动化（纯标准库，无第三方依赖）
     └── test_push.py                     # webhook 连通性测试（只读，零副作用）
 ```
@@ -59,8 +60,10 @@ sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
 
 | Secret | 作用 | 缺省行为 |
 |---|---|---|
-| `WB_TOKEN` | **必填**，WorkBuddy accessToken（JWT） | 无 |
+| `WB_TOKEN` | **必填**，WorkBuddy accessToken（JWT）；无感续签生效后仅作兜底 | 无 |
 | `WB_WECOM_WEBHOOK` | 企业微信群「消息推送」的 webhook 完整 URL | 不配置则只跑流程、不推送 |
+| `WB_REFRESH_TOKEN` | 可选，refreshToken；配了就启用每天云端无感续签（见下文专节） | 不配置则维持 30 天人工续 |
+| `WB_GH_PAT` | 可选，fine-grained PAT（Secrets: write）；续签后把新 RT 写回 secret 用 | 不配置则续签照跑但 60 天后要重新播种 |
 | `WB_TRAVEL_LOCATION_ID` | 指定派猫目的地 id | 自动取目的地列表第一个 |
 
 ### 3. 获取企业微信 webhook（「消息推送」）
@@ -108,8 +111,50 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 ## Token 刷新周期
 
 - 登录态文件：`%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info`（可用 `WB_INFO_PATH` 覆盖）
-- token 为明文 JWT，**有效期约 30 天**。过期后 Actions 会返回 401，届时在本机重新打开一次 WorkBuddy（它会自动刷新登录态），再跑一次第 2 步的 `run_refresh.sh | gh secret set` 即可
+- token 为明文 JWT：**accessToken 寿命 30 天，refreshToken 寿命约 60 天**
+- 刷新接口（从桌面 app 主进程代码挖出，非网传接口）：`POST /v2/plugin/auth/token/refresh`，头带 `X-Refresh-Token` / `X-Auth-Refresh-Source: plugin` / `X-Domain: www.workbuddy.cn`
+- **实测该接口不废止旧 refreshToken**（同一个 RT 可重复调用），所以云端续期和桌面 app 自己的续期互不冲突、互不踢号
 - `refresh_token.py` 会在 stderr 提示剩余有效天数（如 `有效期还剩约 12.3 天`），不污染 stdout 的 token 管道
+
+---
+
+## 无感续签（推荐，一次配置后永久免管）
+
+默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
+
+```
+每天 09:00 云端自动：
+  1. 用 secret 里的 WB_REFRESH_TOKEN 调刷新接口 → 拿到新 accessToken（30 天）+ 新 refreshToken（60 天）
+  2. 用新 accessToken 跑当天的签到/派猫/推送
+  3. 通过 gh CLI + PAT 把新 refreshToken 写回 secret（链条永久滚动，不会断）
+```
+
+**一次性配置（3 步）：**
+
+1. **建 PAT**：GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token
+   - Repository access：只选 `wb-growth-automation` 这一个仓库
+   - Permissions → Repository permissions → **Secrets: Read and write**
+   - Expiration 选一年（到期需换一次，届时群里会提前告警）
+2. **播种 refreshToken**（本机执行）：
+
+   ```bash
+   cd scripts
+   sh run_refresh.sh refresh > wb_rt.txt   # 导出 refreshToken
+   # 把 wb_rt.txt 内容存为 secret：WB_REFRESH_TOKEN；删掉 wb_rt.txt
+   ```
+
+   同时把上一步的 PAT 存为 secret：`WB_GH_PAT`。
+3. 推送后手动触发一次 workflow 验证。日志出现 `[renew] 续签成功` + `新 refreshToken 已写回 secret` 即接通。
+
+**降级链**（任何一环断都不会静默）：
+
+| 情况 | 行为 |
+|---|---|
+| 没配 `WB_REFRESH_TOKEN` | 跳过续签，用 `WB_TOKEN`（维持旧的月续模式） |
+| 刷新失败（RT 过期等） | 回退 `WB_TOKEN`；两者都失效则群里收到「签到失败」 |
+| 写回失败（PAT 失效等） | 当天照常跑，但日报里附一行 ⚠️ 告警，提醒约 60 天后要重新播种 |
+
+**不想要 PAT 也行**：只配 `WB_REFRESH_TOKEN` 不配 `WB_GH_PAT`，续签照常工作，只是 secret 里的 RT 约 60 天后到期，届时重新跑一次第 2 步即可——也从月续变成双月续。
 
 ---
 
