@@ -1,0 +1,7 @@
+# 防止凭证意外进仓库
+wb_token.txt
+*.token
+*token*.txt
+__pycache__/
+*.pyc
+.DS_Store
