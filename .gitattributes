@@ -1,0 +1,4 @@
+# 统一 LF，避免 Windows 签出的 CRLF 把 Linux runner 上的 shell 脚本搞坏
+*.sh text eol=lf
+*.yml text eol=lf
+*.py text eol=lf
