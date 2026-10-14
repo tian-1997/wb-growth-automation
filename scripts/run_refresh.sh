@@ -18,4 +18,8 @@ if [ -z "$PY" ]; then
   exit 127
 fi
 
-exec "$PY" "$SCRIPT_DIR/refresh_token.py"
+# 先 cd 到脚本目录，用相对文件名调 python。
+# 不要用 "$SCRIPT_DIR/refresh_token.py"：Git Bash/MSYS 会把 /c/... 这类
+# POSIX 路径错误转换成 C:\c\...，导致 python 找不到文件。
+cd "$SCRIPT_DIR" || exit 1
+exec "$PY" refresh_token.py

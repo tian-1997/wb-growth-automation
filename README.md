@@ -19,7 +19,8 @@ wb-growth-automation/
 └── scripts/
     ├── refresh_token.py                 # 本机导出 token（只写 stdout，不落盘）
     ├── run_refresh.sh                   # command -v 动态取 python 跑上面的脚本
-    └── daily_growth.py                  # 核心自动化（纯标准库，无第三方依赖）
+    ├── daily_growth.py                  # 核心自动化（纯标准库，无第三方依赖）
+    └── test_push.py                     # webhook 连通性测试（只读，零副作用）
 ```
 
 ---
@@ -52,6 +53,8 @@ sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
 - 先 `sh run_refresh.sh > wb_token.txt`，然后到仓库 **Settings → Secrets and variables → Actions → New repository secret**，Name 填 `WB_TOKEN`，Value 粘贴文件内容。**用完删掉 `wb_token.txt`，且不要提交它。**
 - 或安装 gh CLI（https://cli.github.com）后按上面的管道命令执行。
 
+> **Git Bash 用户注意**：`run_refresh.sh` 内部已规避 MSYS 路径转换问题（`/c/...` 被错误转成 `C:\c\...`）——做法是先 `cd` 到脚本目录再用相对文件名调 python。如果你在自己的脚本里拼绝对路径调 Windows 版 python，也会踩同一个坑。
+
 可选 Secret：
 
 | Secret | 作用 | 缺省行为 |
@@ -82,6 +85,14 @@ sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
 ### 4. 触发一次验收
 
 推送后进入仓库 **Actions → daily-growth → Run workflow** 手动跑一次。日志里会打印脱敏后的原始返回（`WB_DEBUG_RAW=1`），不含 token。
+
+**部署前先验证 webhook**（可选但推荐）：本机跑
+
+```bash
+WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) python scripts/test_push.py
+```
+
+只读接口 + 发一条带【格式测试】标记的消息，不派猫不领积分，零副作用。返回 `{"errcode":0,"errmsg":"ok"}` 即通。
 
 ---
 
