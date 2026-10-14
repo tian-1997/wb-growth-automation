@@ -20,7 +20,7 @@ daily_growth.py — WorkBuddy「Buddy 加油站 / 成长中心」每日自动化
 
 凭证（都不进仓库、不进日志）：
   WB_TOKEN            必填，WorkBuddy accessToken（JWT）。GitHub 侧来自 secret。
-  WB_WECOM_WEBHOOK    可选，企业微信群机器人 webhook 完整 URL。缺省则只打印不上报。
+  WB_WECOM_WEBHOOK    可选，企业微信群「消息推送」（原群机器人，v4.1.41 改名）的 webhook 完整 URL。缺省则只打印不上报。
 
 其余可选：
   WB_BASE             默认 https://www.workbuddy.cn

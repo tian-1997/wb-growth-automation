@@ -1,6 +1,6 @@
 # WorkBuddy「Buddy 加油站」每日自动化
 
-用 GitHub Actions 定时完成两件事，并把结果推送到**企业微信群机器人**：
+用 GitHub Actions 定时完成两件事，并把结果推送到**企业微信**（群机器人，v4.1.41 起官方更名为「消息推送」）：
 
 1. **签到**：读取 Buddy 加油站/成长中心今日打卡状态（连续天数、能量余额、等级）
 2. **派猫猫旅行**：先领掉已到家（arrived）的旅行积分，再判断能否派新的一趟——今天已派过（`daily_limit_reached`）就不派
@@ -36,6 +36,8 @@ git remote add origin git@github.com:<owner>/<repo>.git
 git push -u origin main
 ```
 
+> 本目录已完成 `git init` 并含首次提交（含 `.gitignore`/`.gitattributes`），只需执行 `git remote add origin ...` + `git push`。
+
 ### 2. 注入 Secret（token 不进仓库、不进日志）
 
 在本机（已登录 WorkBuddy 的机器）执行：
@@ -55,10 +57,29 @@ sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
 | Secret | 作用 | 缺省行为 |
 |---|---|---|
 | `WB_TOKEN` | **必填**，WorkBuddy accessToken（JWT） | 无 |
-| `WB_WECOM_WEBHOOK` | 企业微信群机器人 webhook 完整 URL | 不配置则只跑流程、不推送 |
+| `WB_WECOM_WEBHOOK` | 企业微信群「消息推送」的 webhook 完整 URL | 不配置则只跑流程、不推送 |
 | `WB_TRAVEL_LOCATION_ID` | 指定派猫目的地 id | 自动取目的地列表第一个 |
 
-### 3. 触发一次验收
+### 3. 获取企业微信 webhook（「消息推送」）
+
+> **入口改名提示**：企业微信 v4.1.41 起「群机器人」更名为「**消息推送**」，在群设置面板里找「消息推送」即可，位置不变。
+
+操作路径：
+
+1. 打开目标群聊 → 右上角 "..." → 聊天信息面板
+2. 点「**消息推送**」→ 添加 → 新建 → 起名（如 "Buddy日报"）→ 创建
+3. 点刚建的消息推送 → 复制 **Webhook 地址**
+4. 到仓库 Settings → Secrets and variables → Actions 存成 secret，Name 填 `WB_WECOM_WEBHOOK`
+
+已知限制（企业微信官方帮助中心）：
+
+- 仅**内部群**支持；群里含外部联系人（微信用户）时不显示该入口
+- 群开启「仅群主可管理」时，只有群主有添加入口
+- 管理员可在后台限制「可创建消息推送的成员」，不在名单内会提示无权限
+- 频率上限 20 条/分钟（本方案每天 1 条，无压力）
+- 群开启全员禁言时推送不显示，需群主关闭禁言
+
+### 4. 触发一次验收
 
 推送后进入仓库 **Actions → daily-growth → Run workflow** 手动跑一次。日志里会打印脱敏后的原始返回（`WB_DEBUG_RAW=1`），不含 token。
 
@@ -122,4 +143,5 @@ sh run_refresh.sh | gh secret set WB_TOKEN --repo <owner>/<repo>
 ## 已知限制
 
 - 本机当前未安装 `gh` CLI，secret 注入需用网页端粘贴方式（见第 2 步）
-- 推送渠道按标题要求做的是**企业微信**群机器人（markdown）。若实际想推**飞书**，告诉我，把 `push_wecom()` 换成飞书自定义机器人 webhook（JSON `msg_type:text` 或 interactive 卡片）即可，其余逻辑不变
+- 推送渠道为企业微信群「消息推送」（原群机器人，markdown 格式）。markdown 不支持缩进，推送内容里的 `> ` 引用行按官方语法渲染为引用块
+- 企业微信「消息推送」仅支持内部群；若目标群含外部微信用户，需换内部群（见第 3 步限制清单）
