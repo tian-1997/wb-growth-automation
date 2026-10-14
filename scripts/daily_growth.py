@@ -108,8 +108,11 @@ def data_of(resp):
 
 
 def today_str(server_now=None):
+    # 不用 utcfromtimestamp()：Python 3.12+ 已废弃，新版镜像上会刷警告
     t = server_now or time.time()
-    return datetime.datetime.utcfromtimestamp(t + TZ_OFFSET * 3600).strftime("%Y-%m-%d")
+    dt = datetime.datetime.fromtimestamp(
+        t + TZ_OFFSET * 3600, tz=datetime.timezone.utc)
+    return dt.strftime("%Y-%m-%d")
 
 
 # ---------------- 第一部分：签到（成长状态，读取并报告） ----------------
@@ -253,7 +256,8 @@ def push_wecom(checkin, travel):
     if not WEBHOOK:
         log("[wecom] 未配置 WB_WECOM_WEBHOOK，跳过推送。")
         return False
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=TZ_OFFSET)
+    # 不用 utcnow()：Python 3.12+ 已废弃
+    now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=TZ_OFFSET)
     title = "WorkBuddy 加油站 · 每日自动化（%s）" % now.strftime("%Y-%m-%d %H:%M")
 
     c_ok = checkin.get("ok")
