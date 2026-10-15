@@ -3,9 +3,11 @@ name: daily-growth
 # 每天自动跑一次：Buddy 加油站签到状态 + 派猫猫旅行（先领到家积分，再按需派新一趟）
 on:
   schedule:
-    # UTC 时间。默认每天 01:00 UTC = 北京时间 09:00。
+    # UTC 时间。默认每天 01:23 UTC = 北京时间 09:23。
+    # 特意避开 :00 整点：整点是全世界 cron 最堵的时刻，GitHub 的 schedule 是
+    # best-effort，高峰可延迟 10~30 分钟以上；错开 23 分钟基本秒级触发。
     # 想改时间就改这一行（分 时 * * *），注意是 UTC。
-    - cron: "0 1 * * *"
+    - cron: "23 1 * * *"
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发，便于立即验收
 
 # 避免同一时刻重复跑排队

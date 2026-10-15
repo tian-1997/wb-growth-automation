@@ -101,9 +101,9 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 
 ## 定时说明
 
-- 默认 cron：`0 1 * * *`（UTC 01:00 = **北京时间每天 09:00**）
+- 默认 cron：`23 1 * * *`（UTC 01:23 = **北京时间每天 09:23**）
 - 想改时间就改 `daily-growth.yml` 里那一行 `cron`（注意是 **UTC**，北京时间 = UTC+8）
-- GitHub Actions 的 schedule 是尽力而为，高峰可能延迟几分钟到十几分钟，属正常现象
+- **为什么错开整点**：GitHub 的 schedule 是尽力而为，`:00` 是全世界 cron 最堵的时刻，实测（2026-10-15）整点触发延迟 20+ 分钟才创建 run；错开 23 分钟后基本秒级触发
 - `workflow_dispatch` 保留手动触发入口，随时可立即跑
 
 ---
@@ -123,7 +123,7 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
 
 ```
-每天 09:00 云端自动：
+每天 09:23 云端自动：
   1. 用 secret 里的 WB_REFRESH_TOKEN 调刷新接口 → 拿到新 accessToken（30 天）+ 新 refreshToken（60 天）
   2. 用新 accessToken 跑当天的签到/派猫/推送
   3. 通过 gh CLI + PAT 把新 refreshToken 写回 secret（链条永久滚动，不会断）
