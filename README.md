@@ -101,7 +101,7 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 
 ## 定时说明
 
-- 默认 cron：`23 1 * * *`（UTC 01:23 = **北京时间每天 09:23**）
+- 默认 cron：`7 6 * * *`（UTC 06:07 = **北京时间每天 14:07**，下午 2 点档，错开整点）
 - 想改时间就改 `daily-growth.yml` 里那一行 `cron`（注意是 **UTC**，北京时间 = UTC+8）
 - **为什么错开整点**：GitHub 的 schedule 是尽力而为，`:00` 是全世界 cron 最堵的时刻；错开 23 分钟能大幅降低延迟概率
 - `workflow_dispatch` 保留手动触发入口，随时可立即跑
@@ -125,7 +125,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 2. **丢掉的槽位不会补跑**——没有失败记录，没有通知，静默消失
 3. 公共仓库 60 天无任何提交，schedule 会被自动禁用（我们每天有推送活动，不涉及）
 
-**监测方式**：企业微信群每天 09:23 左右那条日报就是心跳——**没收到 = 没跑**，去 Actions 页面按 `event=schedule` 过滤确认。
+**监测方式**：企业微信群每天 14:07 左右那条日报就是心跳——**没收到 = 没跑**，去 Actions 页面按 `event=schedule` 过滤确认。
 
 ### 持久方案：外部调度器触发（彻底绕开 GitHub 调度器）
 
@@ -137,7 +137,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
    - 方法：**POST**
    - Header：`Authorization: Bearer <你的PAT>`、`Accept: application/vnd.github+json`
    - Body：`{"ref":"main"}`
-   - 计划：每天北京时间 09:23（cron-job.org 里选时区 Asia/Shanghai）
+   - 计划：每天北京时间 14:07（cron-job.org 里选时区 Asia/Shanghai）
 3. 之后每天由 cron-job.org 准点触发，workflow 代码一行不用改
 
 > 也可以继续留着 GitHub 自己的 cron 作为备份——两条链路都指向同一个 workflow，服务端「一天只派一次」的硬限制保证重复触发不会重复派猫，最多多推一条日报。
@@ -159,7 +159,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
 
 ```
-每天 09:23 云端自动：
+每天 14:07 云端自动：
   1. 用 secret 里的 WB_REFRESH_TOKEN 调刷新接口 → 拿到新 accessToken（30 天）+ 新 refreshToken（60 天）
   2. 用新 accessToken 跑当天的签到/派猫/推送
   3. 通过 gh CLI + PAT 把新 refreshToken 写回 secret（链条永久滚动，不会断）
