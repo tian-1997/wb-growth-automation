@@ -103,8 +103,44 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 
 - 默认 cron：`23 1 * * *`（UTC 01:23 = **北京时间每天 09:23**）
 - 想改时间就改 `daily-growth.yml` 里那一行 `cron`（注意是 **UTC**，北京时间 = UTC+8）
-- **为什么错开整点**：GitHub 的 schedule 是尽力而为，`:00` 是全世界 cron 最堵的时刻，实测（2026-10-15）整点触发延迟 20+ 分钟才创建 run；错开 23 分钟后基本秒级触发
+- **为什么错开整点**：GitHub 的 schedule 是尽力而为，`:00` 是全世界 cron 最堵的时刻；错开 23 分钟能大幅降低延迟概率
 - `workflow_dispatch` 保留手动触发入口，随时可立即跑
+
+### GitHub 定时任务的可靠性真相（重要）
+
+GitHub 官方文档原文：*"The schedule event can be delayed during periods of high loads... If the load is sufficiently high enough, some queued jobs may be dropped."*
+
+2026 年 10 月的第三方实测数据（Hyperping，4 个公开仓库、7 天）：
+
+| 指标 | 实测值 |
+|---|---|
+| 时间槽真正跑成的比例 | **仅 64%** |
+| 中位启动延迟 | 7.4 分钟 |
+| 两次运行间隔 ≥25 分钟的比例 | 25.7% |
+| 最长间隔 | **137 分钟** |
+
+已知规律：
+
+1. **新仓库优先级最低**——仓库建好后头几天，定时触发晚几小时甚至被丢掉是常态（本仓库 2026-10-15 首次触发即被丢，3 小时无记录）
+2. **丢掉的槽位不会补跑**——没有失败记录，没有通知，静默消失
+3. 公共仓库 60 天无任何提交，schedule 会被自动禁用（我们每天有推送活动，不涉及）
+
+**监测方式**：企业微信群每天 09:23 左右那条日报就是心跳——**没收到 = 没跑**，去 Actions 页面按 `event=schedule` 过滤确认。
+
+### 持久方案：外部调度器触发（彻底绕开 GitHub 调度器）
+
+如果受够了 GitHub 调度器的不靠谱，用外部免费 cron 服务每天打一次 GitHub API，**完全绕开它的调度队列**（手动触发从来都是可靠的，这条路只是把「手动」自动化）：
+
+1. **给 PAT 加权限**：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained → 选 `wb-growth-automation` 仓库 → 权限勾选 **Actions: Read and write**（就是已有的 `WB_GH_PAT`，编辑一下加个权限即可，不用新建）
+2. **注册 cron-job.org**（https://cron-job.org，免费）：新建任务
+   - URL：`https://api.github.com/repos/tian-1997/wb-growth-automation/actions/workflows/daily-growth.yml/dispatches`
+   - 方法：**POST**
+   - Header：`Authorization: Bearer <你的PAT>`、`Accept: application/vnd.github+json`
+   - Body：`{"ref":"main"}`
+   - 计划：每天北京时间 09:23（cron-job.org 里选时区 Asia/Shanghai）
+3. 之后每天由 cron-job.org 准点触发，workflow 代码一行不用改
+
+> 也可以继续留着 GitHub 自己的 cron 作为备份——两条链路都指向同一个 workflow，服务端「一天只派一次」的硬限制保证重复触发不会重复派猫，最多多推一条日报。
 
 ---
 
