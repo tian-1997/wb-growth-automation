@@ -2,6 +2,12 @@ name: daily-growth
 
 # 每天自动跑一次：Buddy 加油站签到状态 + 派猫猫旅行（先领到家积分，再按需派新一趟）
 on:
+  # 应急触发：改动本 workflow 文件并推送即立刻跑一次。
+  # 用途：GitHub 调度器丢槽位时（2026-10-15 实测两连丢），推送一次即可补跑当天任务。
+  # 只盯 workflow 文件本身的变更，普通文档提交不会触发。
+  push:
+    branches: [main]
+    paths: ['.github/workflows/daily-growth.yml']
   schedule:
     # UTC 时间。默认每天 06:07 UTC = 北京时间 14:07（下午 2 点档，错开整点）。
     # 想改时间就改这一行（分 时 * * *），注意是 UTC。
