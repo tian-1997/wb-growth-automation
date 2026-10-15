@@ -264,6 +264,16 @@ def push_wecom(checkin, travel):
     c_lines = "\n".join("> %s" % x for x in checkin.get("lines", [])) or "> 无"
     t_ok = travel.get("ok")
     t_lines = "\n".join("> %s" % x for x in travel.get("lines", [])) or "> 无"
+    # 猫猫小节的标题按本次实际动作措辞
+    acts = travel.get("actions") or []
+    if "claim" in acts and "depart" in acts:
+        t_head = "已领积分 + 已派新趟"
+    elif "depart" in acts:
+        t_head = "已派新趟"
+    elif "claim" in acts:
+        t_head = "已领到积分"
+    else:
+        t_head = "完成" if t_ok else "失败/跳过"
 
     content = (
         "**%s**\n"
@@ -273,7 +283,7 @@ def push_wecom(checkin, travel):
         title,
         "成功" if c_ok else "失败",
         c_lines,
-        "完成" if t_ok else "失败/跳过",
+        t_head,
         t_lines,
     )
     payload = {"msgtype": "markdown", "markdown": {"content": content}}
@@ -312,7 +322,20 @@ def main():
         log("   " + x)
 
     log("== 3) 推送企业微信 ==")
-    push_wecom(checkin, travel)
+    # 多档位轮询模式下，只有"有实质动作"或"出错"才推送，避免重复刷屏：
+    #   - 领到了积分（claim）或派出了新趟（depart）
+    #   - 签到/猫猫任一环节出错（失败必须可见）
+    #   - 凭证续期写回失败（自动续期链约 60 天后会断，需提前知晓）
+    # 静默运行 = 心跳机制：群里没消息且 Actions 无新记录 = 调度器丢槽位。
+    # 例外：设 WB_FORCE_PUSH=1 时无条件推送（调试/验收用）。
+    acts = travel.get("actions") or []
+    renew_warn = os.environ.get("WB_RENEW_WARN") == "1"
+    force_push = os.environ.get("WB_FORCE_PUSH") == "1"
+    actionable = bool(acts) or not checkin.get("ok") or not travel.get("ok") or renew_warn
+    if actionable or force_push:
+        push_wecom(checkin, travel)
+    else:
+        log("[wecom] 本次无实质动作（旅行中/今日已派过），跳过推送。")
 
     # 脱敏原始返回（验收用）：打印到 stderr，不含 token
     if os.environ.get("WB_DEBUG_RAW") == "1":

@@ -101,12 +101,24 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 
 ## 定时说明
 
-- 默认 cron：`5 7 * * *`（UTC 07:05 = **北京时间每天 15:05**，下午 3 点档，错开整点）
+- 默认 cron：`5 7-12 * * *`（UTC 每小时 07:05~12:05 = **北京时间 15:05~20:05，每小时一档**）
 - 想改时间就改 `daily-growth.yml` 里那一行 `cron`（注意是 **UTC**，北京时间 = UTC+8）
-- **为什么错开整点**：GitHub 的 schedule 是尽力而为，`:00` 是全世界 cron 最堵的时刻；错开 23 分钟能大幅降低延迟概率
-- `workflow_dispatch` 保留手动触发入口，随时可立即跑
+- `workflow_dispatch` 保留手动触发入口；另外**改动 workflow 文件并推送**也会立刻触发一次（应急补跑用）
 
-### GitHub 定时任务的可靠性真相（重要）
+### 为什么是「每小时一档」而不是「每天一档」
+
+2026-10-15 实测：本仓库新建，GitHub 调度器**连续丢掉三个槽位**（01:00 / 06:07 / 07:05 UTC 全部静默消失，无记录无通知）。第三方同期实测（Hyperping，10 月）：单槽跑成率仅 64%，新仓库优先级最低。
+
+所以改成下午时段每小时轮询一档：
+
+- 每天 6 档，即使按 64% 跑成率算，**至少一档跑成的概率 ≈ 99.4%**
+- 脚本幂等：服务端硬限制「一天只派一次」，重复跑不会重复派猫；`arrived` 才会 claim，不会重复领
+- **只在有实质动作时才推企业微信**（领到积分 / 派出新趟 / 任一环节出错 / 续期告警）——跑成几档都不刷屏，正常一天 1~2 条（派出一条 + 猫到家领一条）
+- 想强制推送（调试用）：设 `WB_FORCE_PUSH=1`
+
+**心跳机制**：企业微信群里收到「派猫猫」相关消息 = 当天跑成过；**连续整天群里静默 = 调度器又丢槽位了**，去 Actions 页面按 `event=schedule` 过滤确认，然后告诉我，我推个提交 30 秒补跑。
+
+### GitHub 定时任务的可靠性真相（备查）
 
 GitHub 官方文档原文：*"The schedule event can be delayed during periods of high loads... If the load is sufficiently high enough, some queued jobs may be dropped."*
 
@@ -119,28 +131,20 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 | 两次运行间隔 ≥25 分钟的比例 | 25.7% |
 | 最长间隔 | **137 分钟** |
 
-已知规律：
+其他已知规律：丢掉的槽位不会补跑（无失败记录、无通知）；公共仓库 60 天无提交会被自动禁用 schedule（我们不涉及）。
 
-1. **新仓库优先级最低**——仓库建好后头几天，定时触发晚几小时甚至被丢掉是常态（本仓库 2026-10-15 首次触发即被丢，3 小时无记录）
-2. **丢掉的槽位不会补跑**——没有失败记录，没有通知，静默消失
-3. 公共仓库 60 天无任何提交，schedule 会被自动禁用（我们每天有推送活动，不涉及）
+### 备选：外部调度器（追求准点才需要）
 
-**监测方式**：企业微信群每天 15:05 左右那条日报就是心跳——**没收到 = 没跑**，去 Actions 页面按 `event=schedule` 过滤确认。
+多档轮询已经足够稳健。如果追求「每天精确 15:05 一条消息」，用外部免费 cron 服务打 GitHub API，**绕开它的调度队列**（手动触发从来可靠）：
 
-### 持久方案：外部调度器触发（彻底绕开 GitHub 调度器）
-
-如果受够了 GitHub 调度器的不靠谱，用外部免费 cron 服务每天打一次 GitHub API，**完全绕开它的调度队列**（手动触发从来都是可靠的，这条路只是把「手动」自动化）：
-
-1. **给 PAT 加权限**：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained → 选 `wb-growth-automation` 仓库 → 权限勾选 **Actions: Read and write**（就是已有的 `WB_GH_PAT`，编辑一下加个权限即可，不用新建）
-2. **注册 cron-job.org**（https://cron-job.org，免费）：新建任务
+1. **给 PAT 加权限**：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained → 选 `wb-growth-automation` 仓库 → 权限勾选 **Actions: Read and write**（就是已有的 `WB_GH_PAT`，编辑加权限即可）
+2. **注册 cron-job.org**（免费）：新建任务
    - URL：`https://api.github.com/repos/tian-1997/wb-growth-automation/actions/workflows/daily-growth.yml/dispatches`
    - 方法：**POST**
    - Header：`Authorization: Bearer <你的PAT>`、`Accept: application/vnd.github+json`
    - Body：`{"ref":"main"}`
-   - 计划：每天北京时间 15:05（cron-job.org 里选时区 Asia/Shanghai）
-3. 之后每天由 cron-job.org 准点触发，workflow 代码一行不用改
-
-> 也可以继续留着 GitHub 自己的 cron 作为备份——两条链路都指向同一个 workflow，服务端「一天只派一次」的硬限制保证重复触发不会重复派猫，最多多推一条日报。
+   - 计划：每天北京时间 15:05（时区 Asia/Shanghai）
+3. 之后由 cron-job.org 准点触发；同时可把 workflow 里的 cron 改成每天一档 `5 7 * * *` 作为备份（两条链路互不干扰，服务端限制保证不会重复派猫）
 
 ---
 
@@ -159,7 +163,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
 
 ```
-每天 15:05 云端自动：
+每天下午时段（15:05~20:05 任一档跑成）云端自动：
   1. 用 secret 里的 WB_REFRESH_TOKEN 调刷新接口 → 拿到新 accessToken（30 天）+ 新 refreshToken（60 天）
   2. 用新 accessToken 跑当天的签到/派猫/推送
   3. 通过 gh CLI + PAT 把新 refreshToken 写回 secret（链条永久滚动，不会断）
