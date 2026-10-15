@@ -9,9 +9,9 @@ on:
     branches: [main]
     paths: ['.github/workflows/daily-growth.yml']
   schedule:
-    # UTC 时间。默认每天 06:07 UTC = 北京时间 14:07（下午 2 点档，错开整点）。
+    # UTC 时间。默认每天 07:05 UTC = 北京时间 15:05（下午 3 点档，错开整点）。
     # 想改时间就改这一行（分 时 * * *），注意是 UTC。
-    - cron: "7 6 * * *"
+    - cron: "5 7 * * *"
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发，便于立即验收
 
 # 避免同一时刻重复跑排队
