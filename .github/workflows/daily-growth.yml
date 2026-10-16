@@ -84,8 +84,6 @@ jobs:
           WB_TRAVEL_LOCATION_ID: ${{ secrets.WB_TRAVEL_LOCATION_ID }}
           # 打开后会在日志打印脱敏的原始返回（不含 token）
           WB_DEBUG_RAW: "1"
-          # 诊断用：无条件推送（含"无事"场景），排查积分到账问题时临时打开
-          WB_FORCE_PUSH: "1"
         run: |
           set -o pipefail
           "${{ steps.py.outputs.python }}" scripts/daily_growth.py
