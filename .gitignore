@@ -2,6 +2,9 @@
 wb_token.txt
 *.token
 *token*.txt
+.env
+.env.*
+logs/
 __pycache__/
 *.pyc
 .DS_Store

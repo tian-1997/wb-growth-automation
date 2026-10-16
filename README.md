@@ -15,7 +15,9 @@
 
 ```
 wb-growth-automation/
-├── .github/workflows/daily-growth.yml   # GitHub Actions 定时任务
+├── .github/workflows/daily-growth.yml   # GitHub Actions 云端备份触发
+├── .env.wecom                            # 本机运行用的 webhook 配置（gitignore，不进仓库）
+├── logs/daily.log                        # 本机定时任务运行日志（gitignore）
 └── scripts/
     ├── refresh_token.py                 # 本机导出 token（access/refresh 两种，只写 stdout）
     ├── run_refresh.sh                   # command -v 动态取 python 跑上面的脚本
@@ -101,22 +103,37 @@ WB_WECOM_WEBHOOK=<你的webhook地址> WB_TOKEN=$(sh scripts/run_refresh.sh) pyt
 
 ## 定时说明
 
-- 默认 cron：`5 7-12 * * *`（UTC 每小时 07:05~12:05 = **北京时间 15:05~20:05，每小时一档**）
-- 想改时间就改 `daily-growth.yml` 里那一行 `cron`（注意是 **UTC**，北京时间 = UTC+8）
-- `workflow_dispatch` 保留手动触发入口；另外**改动 workflow 文件并推送**也会立刻触发一次（应急补跑用）
+### 主触发：WorkBuddy 定时任务（每天 15:05，本机执行）
 
-### 为什么是「每小时一档」而不是「每天一档」
+2026-10-16 起的主触发方式，已在 WorkBuddy 里配好两个 recurring automation：
 
-2026-10-15 实测：本仓库新建，GitHub 调度器**连续丢掉三个槽位**（01:00 / 06:07 / 07:05 UTC 全部静默消失，无记录无通知）。第三方同期实测（Hyperping，10 月）：单槽跑成率仅 64%，新仓库优先级最低。
+| 任务 | 时间 | 作用 |
+|---|---|---|
+| Buddy加油站每日自动化（15:05主档） | 每天 15:05 | 正式每日跑 |
+| Buddy加油站每日自动化（20:05晚档备份） | 每天 20:05 | 下午电脑没开时的补跑 |
 
-所以改成下午时段每小时轮询一档：
+实测特性（2026-10-16 探针验证）：
 
-- 每天 6 档，即使按 64% 跑成率算，**至少一档跑成的概率 ≈ 99.4%**
+- **准点**：预定 09:18:00 触发，实际 09:18:37 执行，误差 37 秒——不像 GitHub 调度器那样丢槽位
+- **本机执行**：运行在你的电脑上（探针确认主机名、工作目录、登录态文件均可访问）
+- **token 永远新鲜**：每次跑都用 `run_refresh.sh` 从本机登录态现取 token，**30 天过期问题不存在**
+- 运行日志追加在 `logs/daily.log`（已 gitignore），排查问题先看它
+
+**唯一条件**：到点时电脑和 WorkBuddy 要开着。15:05 没开就 20:05 备份档补上；两档都错过，靠下面的 GitHub Actions 云端兜底。
+
+### 备份触发：GitHub Actions 每小时轮询（云端执行）
+
+workflow 的 cron 是 `5 7-12 * * *`（UTC 每小时 07:05~12:05 = **北京时间 15:05~20:05，每小时一档**）。本机两档都错过时，云端任一档跑成也能完成当天任务；`workflow_dispatch` 保留手动触发入口，另外**改动 workflow 文件并推送**也会立刻触发一次（应急补跑用）。
+
+为什么云端是「每小时一档」而不是「每天一档」：2026-10-15 实测，GitHub 调度器**连续丢掉三个槽位**（01:00 / 06:07 / 07:05 UTC 全部静默消失，无记录无通知）。第三方同期实测（Hyperping，10 月）：单槽跑成率仅 64%，新仓库优先级最低。每天 6 档即使按 64% 算，至少一档跑成的概率 ≈ 99.4%。
+
+云端跑的稳健性保证：
+
 - 脚本幂等：服务端硬限制「一天只派一次」，重复跑不会重复派猫；`arrived` 才会 claim，不会重复领
 - **只在有实质动作时才推企业微信**（领到积分 / 派出新趟 / 任一环节出错 / 续期告警）——跑成几档都不刷屏，正常一天 1~2 条（派出一条 + 猫到家领一条）
 - 想强制推送（调试用）：设 `WB_FORCE_PUSH=1`
 
-**心跳机制**：企业微信群里收到「派猫猫」相关消息 = 当天跑成过；**连续整天群里静默 = 调度器又丢槽位了**，去 Actions 页面按 `event=schedule` 过滤确认，然后告诉我，我推个提交 30 秒补跑。
+**心跳机制**：企业微信群里收到「派猫猫」相关消息 = 当天跑成过；**连续整天群里静默 = 所有触发都 miss 了**，先看 `logs/daily.log`（本机两档跑没跑），再看 Actions 页面（云端跑没跑）。
 
 ### GitHub 定时任务的可靠性真相（备查）
 
@@ -155,12 +172,13 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 - 刷新接口（从桌面 app 主进程代码挖出，非网传接口）：`POST /v2/plugin/auth/token/refresh`，头带 `X-Refresh-Token` / `X-Auth-Refresh-Source: plugin` / `X-Domain: www.workbuddy.cn`
 - **实测该接口不废止旧 refreshToken**（同一个 RT 可重复调用），所以云端续期和桌面 app 自己的续期互不冲突、互不踢号
 - `refresh_token.py` 会在 stderr 提示剩余有效天数（如 `有效期还剩约 12.3 天`），不污染 stdout 的 token 管道
+- **本机定时任务方式不受过期影响**：每次跑都从登录态现取 token，无需任何续期操作（前提是那台电脑登录着 WorkBuddy）；下面的续签机制只是给 GitHub 云端执行路径用的
 
 ---
 
 ## 无感续签（推荐，一次配置后永久免管）
 
-默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
+（**仅 GitHub 云端路径需要**；本机定时任务每次现取 token，无此问题）默认方案每个月要人工续一次 token。想彻底无感，加两个 secret 就能让 workflow 每天自动续期：
 
 ```
 每天下午时段（15:05~20:05 任一档跑成）云端自动：
