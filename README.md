@@ -256,6 +256,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 
 ## 已知限制
 
-- 本机当前未安装 `gh` CLI，secret 注入需用网页端粘贴方式（见第 2 步）
+- **本机取 token 依赖 App 的登录态格式**：2026-10-16 起新版 App 把登录态改为加密存储（`$wbEncrypted` 信封，密钥在 App 原生存储），`refresh_token.py` 会明确报错（exit 5）而不是崩溃。此时本机定时任务自动改走**云端 fallback**（更新 workflow 文件标记行并推送，触发 GitHub Actions，云端有完整的 token 续签链），无需人工介入
 - 推送渠道为企业微信群「消息推送」（原群机器人，markdown 格式）。markdown 不支持缩进，推送内容里的 `> ` 引用行按官方语法渲染为引用块
 - 企业微信「消息推送」仅支持内部群；若目标群含外部微信用户，需换内部群（见第 3 步限制清单）
+- **「积分」和「能量」是两个池子**：travel 奖励的 `reward_credit` 走兑换体系（`/activity/growth/redeem/summary` 可见余额），与 `/activity/growth/energy` 的能量余额无关。日报里两个余额都会报；领取后会对比两个池子的前后变化做**到账验证**，接口返回 200 但余额没动会在日报里明确告警（2026-10-16 实测过这种情况）
