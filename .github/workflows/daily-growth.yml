@@ -77,6 +77,8 @@ jobs:
           fi
 
       - name: Run daily growth automation
+        # 到账验证：以 travel/records 的 claimed_at 为服务端真相（2026-10-16 起）。
+        # 旅行奖励只进积分池，能量余额不动是正常现象，不能作为未到账判据。
         env:
           # 续签成功用新 token，否则回退 secret 里的 WB_TOKEN
           WB_TOKEN: ${{ env.WB_TOKEN || secrets.WB_TOKEN }}

@@ -224,34 +224,49 @@ def do_travel():
     if state == "arrived":
         try:
             e_before = _energy_balance()
-            c_before = _credits_balance()
             code, claim = api("POST", "/activity/growth/buddy/travel/claim", body={})
             cd = data_of(claim)
             got = cd.get("reward_credit", reward)
             result["lines"].append("派猫猫：猫猫已到家，领取积分 %s（HTTP %s）" % (got, code))
             result["actions"].append("claim")
             result["claim_raw"] = redact(claim)
-            # 到账验证：领取后能量/积分余额至少有一个应增加；都没动就明确告警
-            # （2026-10-16 实测过"接口 200 但余额不变"的情况，不能只信 HTTP 码）
-            e_after = _energy_balance()
-            c_after = _credits_balance()
-            deltas = []
-            if e_before is not None and e_after is not None:
-                deltas.append(("能量", e_before, e_after))
-            if c_before is not None and c_after is not None:
-                deltas.append(("积分", c_before, c_after))
-            result["claim_deltas"] = deltas
-            if deltas and not any(after > before for _, before, after in deltas):
-                result["claim_not_credited"] = True
-                result["lines"].append(
-                    "⚠️ 领取接口返回成功，但余额均未增加（%s）——积分可能未真正到账，建议去 App 内手动领一次"
-                    % "，".join("%s %s→%s" % d for d in deltas))
-            # 旅行记录：核查这次领取是否入账
+            # 到账验证（服务端真相优先）：
+            # 旅行奖励只进积分池、不进能量池，所以"能量没动"不能判定未到账；
+            # 以 travel/records 里今天这条的 claimed_at / reward_credit 为准。
+            # （2026-10-16 修复：旧逻辑拿能量余额做唯一判据，积分池不可读时会误报。）
+            credited_server_side = None
             try:
                 _, recs = api("GET", "/activity/growth/buddy/travel/records")
                 result["records_raw"] = redact(recs)
+                for rec in (data_of(recs).get("records") or []):
+                    if rec.get("travel_date") == today_str():
+                        claimed_at = rec.get("claimed_at")
+                        rc = rec.get("reward_credit")
+                        credited_server_side = bool(claimed_at) and (rc == got or rc is None)
+                        result["claim_record"] = {
+                            "travel_date": rec.get("travel_date"),
+                            "reward_credit": rc,
+                            "claimed_at": claimed_at,
+                        }
+                        break
             except Exception:  # noqa: BLE001
                 pass
+            e_after = _energy_balance()
+            c_after = _credits_balance()
+            result["claim_deltas"] = [("能量", e_before, e_after)]
+            if c_after is not None:
+                result["claim_deltas"].append(("积分", None, c_after))
+            if credited_server_side is True:
+                result["lines"].append("到账验证：服务端已记录本次领取（claimed_at 已写、积分 %s）。" % got)
+            elif credited_server_side is False:
+                result["claim_not_credited"] = True
+                result["lines"].append(
+                    "⚠️ 服务端记录显示本次领取未入账（claimed_at 未写），建议去 App 内手动领一次")
+            else:
+                # 记录读不到时的降级判断：只在积分池可读时判定，能量不动不算未到账
+                result["lines"].append(
+                    "到账验证：travel/records 不可读，本次仅按 HTTP 200 归档；能量 %s→%s（旅行奖励不进能量池，属正常）。"
+                    % (e_before, e_after))
             # 领完后刷新一次状态，决定接下来能否派
             _, status2 = api("GET", "/activity/growth/buddy/travel/status")
             sd = data_of(status2)
@@ -416,6 +431,24 @@ def main():
             log("猫猫.records:", json.dumps(travel["records_raw"], ensure_ascii=False)[:1200])
         if "depart_raw" in travel:
             log("猫猫.depart:", json.dumps(travel["depart_raw"], ensure_ascii=False)[:800])
+        # 积分余额端点探测（一次性诊断）：旅行奖励只进积分池，但积分池的
+        # 余额端点一直没定位到（redeem/summary 只有兑换计数、订阅体系的
+        # remainCredits 是另一套）。逐个试候选端点，找到含余额字段的那个。
+        log("---- 积分余额端点探测 ----")
+        for path in (
+            "/activity/growth/lottery/summary",
+            "/activity/growth/lottery/prizes",
+            "/activity/growth/buddy/info",
+            "/v2/activity/growth/badges",
+            "/v2/activity/growth/tasks",
+            "/profile/assets/plans-usage/standard",
+        ):
+            try:
+                code, resp = api("GET", path, timeout=15)
+                log("探测 %s -> HTTP %s %s" % (path, code,
+                    json.dumps(redact(resp), ensure_ascii=False)[:400]))
+            except Exception as e:  # noqa: BLE001
+                log("探测 %s -> 失败 %s" % (path, str(e)[:120]))
 
     # 结论：签到状态获取成功即算成功（猫猫成败不影响）
     return 0 if checkin.get("ok") else 1
