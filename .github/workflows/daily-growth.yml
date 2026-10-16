@@ -18,6 +18,10 @@ on:
     - cron: "5 7-12 * * *"
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发，便于立即验收
 
+# 本地 fallback 标记：本机定时任务取不到 token（如 App 升级加密登录态）时，
+# 本机 automation 会更新这行并推送来触发云端运行。不要手动删这行。
+# last-local-fallback: never
+
 # 避免同一时刻重复跑排队
 concurrency:
   group: daily-growth
@@ -80,6 +84,8 @@ jobs:
           WB_TRAVEL_LOCATION_ID: ${{ secrets.WB_TRAVEL_LOCATION_ID }}
           # 打开后会在日志打印脱敏的原始返回（不含 token）
           WB_DEBUG_RAW: "1"
+          # 诊断用：无条件推送（含"无事"场景），排查积分到账问题时临时打开
+          WB_FORCE_PUSH: "1"
         run: |
           set -o pipefail
           "${{ steps.py.outputs.python }}" scripts/daily_growth.py

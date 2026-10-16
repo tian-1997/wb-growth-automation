@@ -64,7 +64,16 @@ def main() -> int:
         sys.stderr.write("用法：refresh_token.py [access|refresh]\n")
         return 2
 
-    token = (data.get("auth") or {}).get(key) or ""
+    token = (data.get("auth") or {}).get(key)
+    if isinstance(token, dict):
+        # 新版 App（2026-10-16 起）把 token 加密存储（$wbEncrypted 信封，
+        # 密钥在 App 原生存储里），本地拿不到明文 JWT 了。
+        sys.stderr.write(
+            "登录态已升级为加密存储（$wbEncrypted），本地无法直接导出 token。\n"
+            "请让每日任务走云端 workflow（GitHub Actions + WB_REFRESH_TOKEN 续签链）。\n"
+        )
+        return 5
+    token = token or ""
     if not token:
         sys.stderr.write("登录态里没有 auth.%s，可能未登录或结构已变。\n" % key)
         return 3

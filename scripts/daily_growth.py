@@ -115,6 +115,37 @@ def today_str(server_now=None):
     return dt.strftime("%Y-%m-%d")
 
 
+def _pick_balance(d):
+    """从 summary 响应里挑余额字段，兼容 balance/credits/points/total 等命名。"""
+    if not isinstance(d, dict):
+        return None
+    for k in ("balance", "credits", "credit", "points", "point",
+              "total", "remain", "remaining", "amount", "value"):
+        v = d.get(k)
+        if isinstance(v, (int, float)):
+            return v
+    return None
+
+
+def _energy_balance():
+    """能量余额；失败返回 None。"""
+    try:
+        _, en = api("GET", "/activity/growth/energy")
+        v = data_of(en).get("balance")
+        return v if isinstance(v, (int, float)) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _credits_balance():
+    """积分余额（redeem/summary，兑换体系的积分池）；失败返回 None。"""
+    try:
+        _, rd = api("GET", "/activity/growth/redeem/summary")
+        return _pick_balance(data_of(rd))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # ---------------- 第一部分：签到（成长状态，读取并报告） ----------------
 def do_checkin():
     result = {"ok": False, "lines": [], "detail": {}}
@@ -123,6 +154,7 @@ def do_checkin():
         _, streak = api("GET", "/activity/growth/streak")
         _, energy = api("GET", "/activity/growth/energy")
         _, heatmap = api("GET", "/activity/growth/heatmap")
+        _, redeem = api("GET", "/activity/growth/redeem/summary")
     except Exception as e:  # noqa: BLE001
         result["lines"].append("签到状态获取失败：%s" % e)
         return result
@@ -134,6 +166,7 @@ def do_checkin():
 
     streak_days = ((st.get("streak") or {}).get("days")) if isinstance(st, dict) else None
     energy_balance = en.get("balance") if isinstance(en, dict) else None
+    credits = _pick_balance(data_of(redeem))
     level = prof.get("level") if isinstance(prof, dict) else None
     level_name = prof.get("level_name") if isinstance(prof, dict) else None
 
@@ -152,7 +185,7 @@ def do_checkin():
     result["detail"] = {
         "level": level, "level_name": level_name,
         "streak_days": streak_days, "energy_balance": energy_balance,
-        "today": today, "today_checked": today_checked,
+        "credits": credits, "today": today, "today_checked": today_checked,
     }
     seg = "已打卡" if today_checked else ("未打卡" if today_checked is False else "状态未知")
     line = "今日(%s)%s" % (today, seg)
@@ -160,12 +193,14 @@ def do_checkin():
         line += "，连续签到 %s 天" % streak_days
     if energy_balance is not None:
         line += "，能量余额 %s" % energy_balance
+    if credits is not None:
+        line += "，积分余额 %s" % credits
     if level_name:
         line += "，等级 %s(%s)" % (level_name, level)
     result["lines"].append(line)
     # 原始返回（脱敏）存档，便于验收
     result["raw"] = {"profile": redact(profile), "streak": redact(streak),
-                     "energy": redact(energy)}
+                     "energy": redact(energy), "redeem": redact(redeem)}
     return result
 
 
@@ -188,12 +223,35 @@ def do_travel():
     # 1) 先领：猫已到家(arrived) -> claim
     if state == "arrived":
         try:
+            e_before = _energy_balance()
+            c_before = _credits_balance()
             code, claim = api("POST", "/activity/growth/buddy/travel/claim", body={})
             cd = data_of(claim)
             got = cd.get("reward_credit", reward)
             result["lines"].append("派猫猫：猫猫已到家，领取积分 %s（HTTP %s）" % (got, code))
             result["actions"].append("claim")
             result["claim_raw"] = redact(claim)
+            # 到账验证：领取后能量/积分余额至少有一个应增加；都没动就明确告警
+            # （2026-10-16 实测过"接口 200 但余额不变"的情况，不能只信 HTTP 码）
+            e_after = _energy_balance()
+            c_after = _credits_balance()
+            deltas = []
+            if e_before is not None and e_after is not None:
+                deltas.append(("能量", e_before, e_after))
+            if c_before is not None and c_after is not None:
+                deltas.append(("积分", c_before, c_after))
+            result["claim_deltas"] = deltas
+            if deltas and not any(after > before for _, before, after in deltas):
+                result["claim_not_credited"] = True
+                result["lines"].append(
+                    "⚠️ 领取接口返回成功，但余额均未增加（%s）——积分可能未真正到账，建议去 App 内手动领一次"
+                    % "，".join("%s %s→%s" % d for d in deltas))
+            # 旅行记录：核查这次领取是否入账
+            try:
+                _, recs = api("GET", "/activity/growth/buddy/travel/records")
+                result["records_raw"] = redact(recs)
+            except Exception:  # noqa: BLE001
+                pass
             # 领完后刷新一次状态，决定接下来能否派
             _, status2 = api("GET", "/activity/growth/buddy/travel/status")
             sd = data_of(status2)
@@ -344,6 +402,10 @@ def main():
         log("猫猫.status:", json.dumps(travel.get("status", {}), ensure_ascii=False)[:1200])
         if "claim_raw" in travel:
             log("猫猫.claim:", json.dumps(travel["claim_raw"], ensure_ascii=False)[:800])
+        if "claim_deltas" in travel:
+            log("猫猫.claim_deltas:", json.dumps(travel["claim_deltas"], ensure_ascii=False)[:300])
+        if "records_raw" in travel:
+            log("猫猫.records:", json.dumps(travel["records_raw"], ensure_ascii=False)[:1200])
         if "depart_raw" in travel:
             log("猫猫.depart:", json.dumps(travel["depart_raw"], ensure_ascii=False)[:800])
 
