@@ -20,15 +20,17 @@ on:
 
 # 本地 fallback 标记：本机定时任务取不到 token（如 App 升级加密登录态）时，
 # 本机 automation 会更新这行并推送来触发云端运行。不要手动删这行。
-# last-local-fallback: never
+# last-local-fallback: 2026-10-16 15:07:46
 
 # 避免同一时刻重复跑排队
 concurrency:
   group: daily-growth
   cancel-in-progress: false
 
+# contents:write 是给「Publish run record」步骤用的：每次运行把脱敏结果
+# 提交回仓库，之后随时可经 GitHub 页面/API 直接查看历史运行记录。
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   run:
@@ -85,5 +87,28 @@ jobs:
           # 打开后会在日志打印脱敏的原始返回（不含 token）
           WB_DEBUG_RAW: "1"
         run: |
-          set -o pipefail
-          "${{ steps.py.outputs.python }}" scripts/daily_growth.py
+          set +e
+          "${{ steps.py.outputs.python }}" scripts/daily_growth.py > run-output.txt 2>&1
+          RUN_RC=$?
+          set -e
+          cat run-output.txt
+          echo "RUN_RC=$RUN_RC" | tee -a run-output.txt
+          exit "$RUN_RC"
+
+      - name: Publish run record (redacted, inspectable via repo)
+        # 把本次运行的脱敏完整输出提交回仓库 logs/actions/last-run.txt。
+        # 用途：远程查看每次运行到底发生了什么（领取前后余额对比、原始返回），
+        # 不需要截图 Actions 日志。任何失败都不影响主流程。
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p logs/actions
+          cp run-output.txt "logs/actions/last-run.txt"
+          git config user.name "WorkBuddy CI"
+          git config user.email "noreply@local"
+          git add logs/actions/last-run.txt
+          git diff --cached --quiet && { echo "run record 无变化，跳过提交"; exit 0; }
+          git -c user.name="WorkBuddy CI" -c user.email="noreply@local" \
+            commit -m "ci: run record $(date -u '+%Y-%m-%d %H:%M UTC')" || exit 0
+          git pull --rebase origin main >/dev/null 2>&1 || true
+          git push origin HEAD:main || echo "::warning::run record 推送失败（不影响本次运行结果）"
