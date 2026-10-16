@@ -421,34 +421,37 @@ def main():
     # 脱敏原始返回（验收用）：打印到 stderr，不含 token
     if os.environ.get("WB_DEBUG_RAW") == "1":
         log("---- 脱敏原始返回 ----")
-        log("签到.raw:", json.dumps(checkin.get("raw", {}), ensure_ascii=False)[:1500])
+        log("签到.raw:", json.dumps(checkin.get("raw", {}), ensure_ascii=False)[:2500])
         log("猫猫.status:", json.dumps(travel.get("status", {}), ensure_ascii=False)[:1200])
         if "claim_raw" in travel:
             log("猫猫.claim:", json.dumps(travel["claim_raw"], ensure_ascii=False)[:800])
         if "claim_deltas" in travel:
             log("猫猫.claim_deltas:", json.dumps(travel["claim_deltas"], ensure_ascii=False)[:300])
         if "records_raw" in travel:
-            log("猫猫.records:", json.dumps(travel["records_raw"], ensure_ascii=False)[:1200])
+            log("猫猫.records:", json.dumps(travel["records_raw"], ensure_ascii=False)[:3000])
         if "depart_raw" in travel:
             log("猫猫.depart:", json.dumps(travel["depart_raw"], ensure_ascii=False)[:800])
-        # 积分余额端点探测（一次性诊断）：旅行奖励只进积分池，但积分池的
-        # 余额端点一直没定位到（redeem/summary 只有兑换计数、订阅体系的
-        # remainCredits 是另一套）。逐个试候选端点，找到含余额字段的那个。
-        log("---- 积分余额端点探测 ----")
-        for path in (
-            "/activity/growth/lottery/summary",
-            "/activity/growth/lottery/prizes",
-            "/activity/growth/buddy/info",
-            "/v2/activity/growth/badges",
-            "/v2/activity/growth/tasks",
-            "/profile/assets/plans-usage/standard",
-        ):
-            try:
-                code, resp = api("GET", path, timeout=15)
-                log("探测 %s -> HTTP %s %s" % (path, code,
-                    json.dumps(redact(resp), ensure_ascii=False)[:400]))
-            except Exception as e:  # noqa: BLE001
-                log("探测 %s -> 失败 %s" % (path, str(e)[:120]))
+        # 积分余额端点探测（一次性诊断，2026-10-16 已跑过一轮）：
+        # 结论：lottery/summary、lottery/prizes、buddy/info、badges、tasks、
+        # redeem/summary、plans-usage 均不返回积分余额——增长体系没有暴露
+        # 积分余额的只读接口，到账验证因此以 travel/records 的 claimed_at 为准。
+        # 默认关闭；需要时在环境里设 WB_PROBE_ENDPOINTS=1 再跑。
+        if os.environ.get("WB_PROBE_ENDPOINTS") == "1":
+            log("---- 积分余额端点探测 ----")
+            for path in (
+                "/activity/growth/lottery/summary",
+                "/activity/growth/lottery/prizes",
+                "/activity/growth/buddy/info",
+                "/v2/activity/growth/badges",
+                "/v2/activity/growth/tasks",
+                "/profile/assets/plans-usage/standard",
+            ):
+                try:
+                    code, resp = api("GET", path, timeout=15)
+                    log("探测 %s -> HTTP %s %s" % (path, code,
+                        json.dumps(redact(resp), ensure_ascii=False)[:400]))
+                except Exception as e:  # noqa: BLE001
+                    log("探测 %s -> 失败 %s" % (path, str(e)[:120]))
 
     # 结论：签到状态获取成功即算成功（猫猫成败不影响）
     return 0 if checkin.get("ok") else 1

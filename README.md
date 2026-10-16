@@ -259,4 +259,6 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 - **本机取 token 依赖 App 的登录态格式**：2026-10-16 起新版 App 把登录态改为加密存储（`$wbEncrypted` 信封，密钥在 App 原生存储），`refresh_token.py` 会明确报错（exit 5）而不是崩溃。此时本机定时任务自动改走**云端 fallback**（更新 workflow 文件标记行并推送，触发 GitHub Actions，云端有完整的 token 续签链），无需人工介入
 - 推送渠道为企业微信群「消息推送」（原群机器人，markdown 格式）。markdown 不支持缩进，推送内容里的 `> ` 引用行按官方语法渲染为引用块
 - 企业微信「消息推送」仅支持内部群；若目标群含外部微信用户，需换内部群（见第 3 步限制清单）
-- **「积分」和「能量」是两个池子**：travel 奖励的 `reward_credit` 走兑换体系（`/activity/growth/redeem/summary` 可见余额），与 `/activity/growth/energy` 的能量余额无关。日报里两个余额都会报；领取后会对比两个池子的前后变化做**到账验证**，接口返回 200 但余额没动会在日报里明确告警（2026-10-16 实测过这种情况）
+- **「积分」和「能量」是两个池子，且旅行奖励只进积分池**：travel 的 `reward_credit` 是积分（Credit），`/activity/growth/energy` 的能量余额不会因为领旅行积分而变化——这是正常现象，不是没到账
+- **增长体系没有暴露积分余额的只读接口**（2026-10-16 实测：`redeem/summary` 只有兑换档位计数、`lottery/summary` 只有抽奖次数、`lottery/prizes`/`badges`/`tasks`/`buddy/info`/`plans-usage` 均无余额字段）。因此到账验证以**服务端真相**为准：领取后查 `travel/records`，今天这条的 `claimed_at` 已写、`reward_credit` 对得上即判定入账；读不到记录时才降级为 HTTP 200 归档（不再拿能量余额当判据——旧逻辑因此误报过）
+- 任务奖励（如「和 AI 聊天 30 次」= 100 积分 + 5 能量值）是积分+能量都给，与旅行奖励不同
