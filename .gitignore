@@ -4,7 +4,13 @@ wb_token.txt
 *token*.txt
 .env
 .env.*
-logs/
+# 本机自动化日志不进仓库；但 GitHub Actions 的运行记录要提交（可远程查看）
+logs/*
+!logs/actions/
+logs/actions/*
+!logs/actions/last-run.txt
+# runner 上的临时输出文件
+run-output.txt
 __pycache__/
 *.pyc
 .DS_Store

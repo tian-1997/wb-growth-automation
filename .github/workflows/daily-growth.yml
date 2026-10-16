@@ -99,6 +99,8 @@ jobs:
         # 把本次运行的脱敏完整输出提交回仓库 logs/actions/last-run.txt。
         # 用途：远程查看每次运行到底发生了什么（领取前后余额对比、原始返回），
         # 不需要截图 Actions 日志。任何失败都不影响主流程。
+        # 注意：此步骤依赖 .gitignore 里的白名单（!logs/actions/last-run.txt），
+        # 二者必须同步修改，否则记录会被忽略而提交不上来。
         if: always()
         continue-on-error: true
         run: |

@@ -306,6 +306,14 @@ def do_travel():
     else:
         result["lines"].append("派猫猫：当前状态 %s，不派新趟。" % state)
 
+    # 旅行记录：每次都拉一次（不只领取时），便于从运行记录核对历史领取是否入账
+    if "records_raw" not in result:
+        try:
+            _, recs = api("GET", "/activity/growth/buddy/travel/records")
+            result["records_raw"] = redact(recs)
+        except Exception:  # noqa: BLE001
+            pass
+
     return result
 
 
