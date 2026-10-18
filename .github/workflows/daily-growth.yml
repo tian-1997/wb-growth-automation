@@ -20,7 +20,7 @@ on:
 
 # 本地 fallback 标记：本机定时任务取不到 token（如 App 升级加密登录态）时，
 # 本机 automation 会更新这行并推送来触发云端运行。不要手动删这行。
-# last-local-fallback: 2026-10-17 20:06:19
+# last-local-fallback: 2026-10-18 15:06:26
 
 # 避免同一时刻重复跑排队
 concurrency:
