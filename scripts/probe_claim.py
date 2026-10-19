@@ -148,6 +148,31 @@ def main():
     except Exception as e:  # noqa: BLE001
         log("v1 清单读取失败：%s" % str(e)[:120])
 
+    log("[6/6] 第四轮：公众号任务/等级徽章/分享奖励等最后一组候选")
+    for method, path, body in (
+        # 公众号任务（+100积分+5能量，唯一与弹窗奖励数值完全一致的已知项）
+        ("POST", "/activity/growth/tasks/wb_wechat_oa_subscribe_task/claim", {}),
+        ("GET", "/v1/activity/growth/subscribe-task/status", None),
+        ("GET", "/v2/activity/growth/subscribe-task", None),
+        ("POST", "/v2/activity/growth/subscribe-task/claim", {}),
+        ("POST", "/v1/activity/growth/subscribe-task/claim", {}),
+        # 等级徽章领取（v1 等级任务列表 status=available，可能另有领取口）
+        ("POST", "/v2/activity/growth/badges/first_chat/claim", {}),
+        ("POST", "/v2/activity/growth/badges/expert_summoned/claim", {}),
+        ("POST", "/activity/growth/level-tasks/first_chat/claim", {}),
+        # 热力图分享奖励（POST 语义， daily share bonus 候选）
+        ("POST", "/activity/growth/heatmap/share", {}),
+        # 其他每日奖励 guess
+        ("GET", "/v2/activity/growth/claimable", None),
+        ("GET", "/v2/activity/growth/daily-bonus", None),
+        ("POST", "/activity/growth/daily-bonus/claim", {}),
+    ):
+        try:
+            code, raw = api(method, path, body=body)
+            log("%-6s %-55s -> %s %s" % (method, path, code, raw[:250]))
+        except Exception as e:  # noqa: BLE001
+            log("%-6s %-55s -> 失败 %s" % (method, path, str(e)[:120]))
+
     return 0
 
 
