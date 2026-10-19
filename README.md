@@ -16,8 +16,11 @@
 ```
 wb-growth-automation/
 ├── .github/workflows/daily-growth.yml   # GitHub Actions 云端备份触发
+├── .github/workflows/balance-diag.yml   # 只读余额诊断（核对积分池归属，不领不派不推送）
 ├── .env.wecom                            # 本机运行用的 webhook 配置（gitignore，不进仓库）
 ├── logs/daily.log                        # 本机定时任务运行日志（gitignore）
+├── logs/actions/last-run.txt             # Actions 每日运行脱敏记录（提交回仓库，可远程查看）
+├── logs/diag/last-diag.txt               # 余额诊断脱敏记录（同上）
 └── scripts/
     ├── refresh_token.py                 # 本机导出 token（access/refresh 两种，只写 stdout）
     ├── run_refresh.sh                   # command -v 动态取 python 跑上面的脚本
@@ -260,5 +263,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 - 推送渠道为企业微信群「消息推送」（原群机器人，markdown 格式）。markdown 不支持缩进，推送内容里的 `> ` 引用行按官方语法渲染为引用块
 - 企业微信「消息推送」仅支持内部群；若目标群含外部微信用户，需换内部群（见第 3 步限制清单）
 - **「积分」和「能量」是两个池子，且旅行奖励只进积分池**：travel 的 `reward_credit` 是积分（Credit），`/activity/growth/energy` 的能量余额不会因为领旅行积分而变化——这是正常现象，不是没到账
-- **增长体系没有暴露积分余额的只读接口**（2026-10-16 实测：`redeem/summary` 只有兑换档位计数、`lottery/summary` 只有抽奖次数、`lottery/prizes`/`badges`/`tasks`/`buddy/info`/`plans-usage` 均无余额字段）。因此到账验证以**服务端真相**为准：领取后查 `travel/records`，今天这条的 `claimed_at` 已写、`reward_credit` 对得上即判定入账；读不到记录时才降级为 HTTP 200 归档（不再拿能量余额当判据——旧逻辑因此误报过）
+- **旅行/任务领的积分和界面上的「总剩余积分」是同一个池子（2026-10-19 实测确认）**：`POST /billing/meter/get-user-resource-summary` 返回 `TotalCredits: 2661.6000005`，与账户页「剩余积分 2,661.6」逐位一致。该池由 billing/meter 体系管理（套餐/权益包发分、AI 用量扣分），带小数是因为用量按模型倍率（x0.21/x0.65/x1.20）扣小数；旅行每次只发 8~10 的整数分，落到这个池里。官方活动规则原文（App 内成长中心页面）：「积分（Credit）将在用户点击'领取奖励'后实时到账至用户的积分账户，可用于产品内已开通的积分消费场景」；抽奖中奖文案亦注明「积分已发放，**将在几分钟内到账**」——**到账有分钟级延迟**，收到'已领取'推送后立刻去看余额不会变，过几分钟才变；加上展示界面普遍 `Math.floor` 取整（显示 2,661）、AI 同时在扣分，净变化经常看起来就是 0
+- **增长体系没有暴露自己的积分余额接口**（2026-10-16/19 两轮实测：`redeem/summary` 只有兑换档位计数、`lottery/summary` 只有抽奖次数、`lottery/prizes`/`badges`/`tasks`/`buddy/info`/`plans-usage` 均无余额字段）。主账户余额走 `POST /billing/meter/get-user-resource-summary`（前端 usercenter 同款 POST，GET 会 405）；到账验证以**服务端真相**为准：领取后查 `travel/records`，今天这条的 `claimed_at` 已写、`reward_credit` 对得上即判定入账；读不到记录时才降级为 HTTP 200 归档（不再拿能量余额当判据——旧逻辑因此误报过）
+- **只读余额诊断**：`balance-diag.yml`（改 workflow 文件推送即触发 / Actions 页手动触发），`WB_DIAG_ONLY=1` 只读状态不领不派不推送，`WB_PROBE_ENDPOINTS=1` 附带上文全部余额端点探测，记录提交到 `logs/diag/last-diag.txt`
 - 任务奖励（如「和 AI 聊天 30 次」= 100 积分 + 5 能量值）是积分+能量都给，与旅行奖励不同
