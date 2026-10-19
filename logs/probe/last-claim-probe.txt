@@ -18,9 +18,36 @@ POST /activity/growth/daily-reward/claim -> 404 404 page not found
 POST /v2/activity/growth/daily-reward/claim -> 404 404 page not found
 POST /activity/growth/subscribe-task/claim -> 404 404 page not found
 POST /v2/activity/growth/subscribe-task/claim -> 404 404 page not found
-POST /activity/growth/tasks/daily_checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"ff87de1e-7c2c-42f4-b847-f35a12c17b8f"}
-POST /activity/growth/tasks/checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"69d2b259-3691-42ae-8624-6a0232684e59"}
-POST /activity/growth/tasks/daily/claim -> 400 {"code":400,"msg":"task not completed","requestId":"48a0e0b8-db60-4138-aba7-483e7e64523d"}
+POST /activity/growth/tasks/daily_checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"eaf31f7a-09a3-42c3-8919-a841480d4ef6"}
+POST /activity/growth/tasks/checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"cadec846-e586-4b05-9d97-1d465f65dd03"}
+POST /activity/growth/tasks/daily/claim -> 400 {"code":400,"msg":"task not completed","requestId":"c246bc63-cd52-4626-ad6d-9cc542899596"}
 POST /activity/growth/sign/claim -> 404 404 page not found
 POST /v2/activity/growth/sign/claim -> 404 404 page not found
+[3/3] 对照与深挖：tasks/claim 的 code 校验行为 + 隐藏任务 code  candidates
+claim code=__bogus_control__  -> 400 {"code":400,"msg":"task not completed","requestId":"5c145aa6-36c4-44bb-b983-b07d69acb60a"}
+claim code=daily_checkin      -> 400 {"code":400,"msg":"task not completed","requestId":"b8019024-8707-46b5-b569-b0c85778b068"}
+claim code=checkin            -> 400 {"code":400,"msg":"task not completed","requestId":"60068850-b7bf-4101-9607-5ef1f4d93835"}
+claim code=daily              -> 400 {"code":400,"msg":"task not completed","requestId":"0cf7c605-0651-497c-8272-b819d84c40fb"}
+claim code=sign_in            -> 400 {"code":400,"msg":"task not completed","requestId":"45b5b89c-f0d4-49b2-a133-b58c5c2e5f91"}
+claim code=check_in           -> 400 {"code":400,"msg":"task not completed","requestId":"077ad52c-0751-4814-bda0-5f2f6942d7d2"}
+claim code=daily_sign         -> 400 {"code":400,"msg":"task not completed","requestId":"3ec5934d-03da-4a94-80a0-eee346b72445"}
+claim code=daily_active       -> 400 {"code":400,"msg":"task not completed","requestId":"1e3390f2-c5a3-4f44-84a9-8b4ea4f9dd0c"}
+claim code=daily_chat         -> 400 {"code":400,"msg":"task not completed","requestId":"c6a022d0-5dc7-4794-9762-597969209eef"}
+claim code=daily_task         -> 400 {"code":400,"msg":"task not completed","requestId":"96af5b31-9671-495a-ac76-8437e8730683"}
+claim code=oil_station        -> 400 {"code":400,"msg":"task not completed","requestId":"500ce853-b3dc-49b0-af3b-68e1a87c5db0"}
+claim code=gas_station        -> 400 {"code":400,"msg":"task not completed","requestId":"b4e48b5d-b77b-481c-993f-ce41c6ac065b"}
+claim code=buddy_daily        -> 400 {"code":400,"msg":"task not completed","requestId":"1caf8daf-8026-4e27-86f1-4fe82186cb99"}
+claim code=daily_visit        -> 400 {"code":400,"msg":"task not completed","requestId":"b238c622-be45-45ba-9d2d-fa5ba48fcd54"}
+claim code=daily_login        -> 400 {"code":400,"msg":"task not completed","requestId":"21c66e0d-2a78-47a1-beea-6dd8ce71015d"}
+claim code=login              -> 400 {"code":400,"msg":"task not completed","requestId":"86354dc5-34eb-4fd5-93e3-c122418d30ed"}
+claim code=visit              -> 400 {"code":400,"msg":"task not completed","requestId":"12484ab0-2d9d-495e-936e-99ff75ffbfb4"}
+claim code=active             -> 400 {"code":400,"msg":"task not completed","requestId":"e7df2de0-09d0-4d86-a889-7accb8e62a17"}
+claim code=daily_use          -> 400 {"code":400,"msg":"task not completed","requestId":"44621195-b876-40e8-92c3-7a67543276f3"}
+[4/4] 任务列表变体（找隐藏的每日任务从哪露出）
+GET /v2/activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"38505a08-deb2-4499-8ee4-061224337a44","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"22241e49-48d5-431f-84bb-60a01f841483","data":{"tasks":[{"task_id":1,"code":"first_chat","title":"完成一次对话","description":"使用 WorkBuddy 完成至少一次对话交互","icon_url":"","level_name":"养虾尝试","status":"available","url":""},{"task_id":2,"code":"skill_installed","title":"完成技能安装","description":"成功安装至少一个 WorkBuddy 技能","icon_url":"","level_name":"养虾入门","status":"available","url":""},{"task_id":3,"code":"wechat_linked","title":"链接微信","description":"完成 WorkBuddy 设置，成功链接到微信","icon_url":"","level_name":"养虾熟手","status":"available","url":""},{"task_id":4,"code":"expert_summoned","tit
+GET /v2/activity/growth/tasks?type=daily -> 200 {"code":0,"msg":"OK","requestId":"263a5bf5-2b68-438d-a6a6-ddf21418dfc8","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /v2/activity/growth/tasks?include_daily=1 -> 200 {"code":0,"msg":"OK","requestId":"c80ecadc-5a65-47d4-8e77-3321cc3e187e","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /v2/activity/growth/daily-tasks -> 404 404 page not found
+GET /v2/activity/growth/tasks/daily -> 404 404 page not found
 RUN_RC=0
