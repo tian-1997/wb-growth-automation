@@ -3,7 +3,7 @@
 """
 daily_growth.py — WorkBuddy「Buddy 加油站 / 成长中心」每日自动化。
 
-一次运行做两件事（状态分开记录、分开上报）：
+一次运行做三件事（状态分开记录、分开上报）：
   1) 签到（Buddy 加油站打卡 / 成长状态）
      - 读取 profile / streak / energy / heatmap，报告今日打卡状态。
      - 说明：该体系的每日「打卡/签到」由使用 WorkBuddy 的行为自动记录，
@@ -17,6 +17,11 @@ daily_growth.py — WorkBuddy「Buddy 加油站 / 成长中心」每日自动化
          才 POST travel/depart {location_id}；今天已派过(daily_limit_reached)
          或猫在旅行中(traveling/arrived)则不派。
      - 猫猫部分任何失败都不影响"签到"结论。
+  3) 任务奖励（捡漏）
+     - GET /v2/activity/growth/tasks，对 accept_status == "completed"
+       （已完成待领）的任务逐个 POST /activity/growth/tasks/{code}/claim。
+     - 只领不接：不 accept 未领取的新任务（任务进度从用户手动领取时刻起算）。
+     - 任务部分任何失败都不影响"签到"结论。
 
 凭证（都不进仓库、不进日志）：
   WB_TOKEN            必填，WorkBuddy accessToken（JWT）。GitHub 侧来自 secret。
@@ -345,8 +350,61 @@ def do_travel():
     return result
 
 
+# ---------------- 第三部分：任务奖励领取（捡漏已完成的） ----------------
+def do_tasks():
+    """领取所有已完成待领（accept_status == "completed"）的任务奖励。
+
+    只领不接：不 accept 未领取的新任务——任务进度从用户手动领取时刻才起算
+    （官方规则），不代用户决定开始哪些任务。已 claimed 的任务不会出现在
+    completed 列表里，天然幂等；服务端到账同为分钟级异步。
+    """
+    result = {"ok": False, "lines": [], "actions": []}
+    try:
+        _, tasks = api("GET", "/v2/activity/growth/tasks")
+    except Exception as e:  # noqa: BLE001
+        result["lines"].append("任务：读取失败：%s" % e)
+        return result
+    result["ok"] = True
+    claimable = [t for t in (data_of(tasks).get("tasks") or [])
+                 if t.get("accept_status") == "completed"]
+    result["claimable_count"] = len(claimable)
+    if not claimable:
+        result["lines"].append("任务：暂无已完成待领的奖励。")
+        return result
+    if os.environ.get("WB_DIAG_ONLY") == "1":
+        # 诊断模式只读：列出待领任务但不领取（balance-diag 承诺零副作用）
+        for t in claimable:
+            result["lines"].append(
+                "任务：待领「%s」+%s 积分 +%s 能量（诊断模式不领取）。"
+                % (t.get("title"), t.get("reward_credit"), t.get("reward_energy")))
+        return result
+    for t in claimable:
+        code = t.get("task_code")
+        title = t.get("title") or code
+        rc = t.get("reward_credit")
+        re = t.get("reward_energy")
+        try:
+            http, claim = api("POST", "/activity/growth/tasks/%s/claim" % code, body={})
+            ok = isinstance(claim, dict) and claim.get("code") == 0
+            if ok:
+                cd = data_of(claim)
+                got_c = cd.get("reward_credit", rc)
+                got_e = cd.get("reward_energy", re)
+                result["lines"].append(
+                    "任务：已领取「%s」奖励 +%s 积分 +%s 能量（HTTP %s）。"
+                    % (title, got_c, got_e, http))
+                result["actions"].append("task_claim")
+            else:
+                result["lines"].append(
+                    "任务：「%s」领取未成功（HTTP %s）：%s"
+                    % (title, http, redact(claim)))
+        except Exception as e:  # noqa: BLE001
+            result["lines"].append("任务：「%s」领取失败：%s" % (title, e))
+    return result
+
+
 # ---------------- 企业微信推送 ----------------
-def push_wecom(checkin, travel):
+def push_wecom(checkin, travel, tasks=None):
     if not WEBHOOK:
         log("[wecom] 未配置 WB_WECOM_WEBHOOK，跳过推送。")
         return False
@@ -369,16 +427,23 @@ def push_wecom(checkin, travel):
     else:
         t_head = "完成" if t_ok else "失败/跳过"
 
+    # 任务小节：只在真的领到过奖励时才出现（避免天天推送"暂无待领"刷屏）
+    tasks_section = ""
+    if tasks and (tasks.get("actions") or []):
+        k_lines = "\n".join("> %s" % x for x in tasks.get("lines", [])) or "> 无"
+        tasks_section = "\n**📋 任务奖励**：已领取\n%s" % k_lines
+
     content = (
         "**%s**\n"
         "**🛢 签到（Buddy 加油站）**：%s\n%s\n"
-        "**🐱 派猫猫旅行**：%s\n%s"
+        "**🐱 派猫猫旅行**：%s\n%s%s"
     ) % (
         title,
         "成功" if c_ok else "失败",
         c_lines,
         t_head,
         t_lines,
+        tasks_section,
     )
     payload = {"msgtype": "markdown", "markdown": {"content": content}}
     # 云端续签写回失败时附一行告警（自动续期链约 60 天后会断）
@@ -415,21 +480,27 @@ def main():
     for x in travel.get("lines", []):
         log("   " + x)
 
-    log("== 3) 推送企业微信 ==")
+    log("== 3) 任务奖励（捡漏已完成的） ==")
+    tasks_res = do_tasks()
+    for x in tasks_res.get("lines", []):
+        log("   " + x)
+
+    log("== 4) 推送企业微信 ==")
     # 多档位轮询模式下，只有"有实质动作"或"出错"才推送，避免重复刷屏：
-    #   - 领到了积分（claim）或派出了新趟（depart）
+    #   - 旅行：领到了积分（claim）或派出了新趟（depart）
+    #   - 任务：领到了已完成的任务奖励（task_claim）
     #   - 签到/猫猫任一环节出错（失败必须可见）
     #   - 凭证续期写回失败（自动续期链约 60 天后会断，需提前知晓）
     # 静默运行 = 心跳机制：群里没消息且 Actions 无新记录 = 调度器丢槽位。
     # 例外：设 WB_FORCE_PUSH=1 时无条件推送（调试/验收用）。
-    acts = travel.get("actions") or []
+    acts = (travel.get("actions") or []) + (tasks_res.get("actions") or [])
     renew_warn = os.environ.get("WB_RENEW_WARN") == "1"
     force_push = os.environ.get("WB_FORCE_PUSH") == "1"
     actionable = bool(acts) or not checkin.get("ok") or not travel.get("ok") or renew_warn
     if os.environ.get("WB_DIAG_ONLY") == "1":
         log("[wecom] 诊断模式，不推送。")
     elif actionable or force_push:
-        push_wecom(checkin, travel)
+        push_wecom(checkin, travel, tasks_res)
     else:
         log("[wecom] 本次无实质动作（旅行中/今日已派过），跳过推送。")
 
