@@ -128,6 +128,26 @@ def main():
         except Exception as e:  # noqa: BLE001
             log("%s %s -> 失败 %s" % (method, path, str(e)[:120]))
 
+    log("[5/5] v1 等级任务清单全量 + 逐 code 领取")
+    # v1 /activity/growth/tasks 返回的是"等级任务"（养虾尝试→老手，与 v2 任务清单
+    # 是两套东西），前端用户中心不用它，App 用——弹窗每日领取大概率就是这一套。
+    try:
+        code, raw = api("GET", "/activity/growth/tasks")
+        log("v1 全量: %s" % raw[:4000])
+        try:
+            codes = [t.get("code") for t in json.loads(raw)["data"]["tasks"]]
+        except Exception:  # noqa: BLE001
+            codes = []
+        log("v1 codes: %s" % codes)
+        for c in codes:
+            try:
+                http, rraw = api("POST", "/activity/growth/tasks/%s/claim" % c, body={})
+                log("v1 claim %-20s -> %s %s" % (c, http, rraw[:200]))
+            except Exception as e:  # noqa: BLE001
+                log("v1 claim %-20s -> 失败 %s" % (c, str(e)[:120]))
+    except Exception as e:  # noqa: BLE001
+        log("v1 清单读取失败：%s" % str(e)[:120])
+
     return 0
 
 
