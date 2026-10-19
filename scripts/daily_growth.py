@@ -567,6 +567,20 @@ def main():
                         t.get("reward_credit"), t.get("reward_energy")))
             except Exception as e:  # noqa: BLE001
                 log("任务清单转储失败：%s" % str(e)[:120])
+            # 积分发放流水（billing accounts）：每笔发放的包名/交易号/创建时间，
+            # 用于回溯任意一笔积分是哪个发放口进来的
+            try:
+                _, res = api("POST", "/billing/meter/get-user-resource", body={}, timeout=15)
+                accs = (((data_of(res).get("Response") or {}).get("Data") or {})
+                        .get("Accounts") or [])
+                log("积分发放流水：共 %d 笔" % len(accs))
+                for a in accs:
+                    log("流水 | %s | %s | deal=%s | create=%s | cycle %s ~ %s" % (
+                        a.get("PackageName"), a.get("PackageCode"),
+                        a.get("DealName"), a.get("CreateTime"),
+                        a.get("CycleStartTime"), a.get("CycleEndTime")))
+            except Exception as e:  # noqa: BLE001
+                log("积分发放流水读取失败：%s" % str(e)[:120])
 
     # 结论：签到状态获取成功即算成功（猫猫成败不影响）
     return 0 if checkin.get("ok") else 1
