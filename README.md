@@ -4,6 +4,7 @@
 
 1. **签到**：读取 Buddy 加油站/成长中心今日打卡状态（连续天数、能量余额、等级）
 2. **派猫猫旅行**：先领掉已到家（arrived）的旅行积分，再判断能否派新的一趟——今天已派过（`daily_limit_reached`）就不派
+3. **任务奖励捡漏**：领取所有已完成待领（`accept_status == "completed"`）的任务奖励——只领不接，不 accept 未领取的新任务（任务进度从用户手动领取时刻才起算，官方规则）
 
 > **关于「签到」的说明（重要）**：经核对前端 API 模块，该体系的每日打卡由使用 WorkBuddy 的行为自动记录，服务端**没有「手动签到」POST 接口**（`streak`/`heatmap` 均为只读 GET）。因此脚本做的是「读取并报告今日签到状态」——接口调用成功即视为签到状态获取成功。
 >
@@ -231,6 +232,9 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 | 能量余额 | GET | `/activity/growth/energy` |
 | 打卡热力图 | GET | `/activity/growth/heatmap` |
 | 成长概况 | GET | `/v2/activity/growth/profile` |
+| 任务清单 | GET | `/v2/activity/growth/tasks` |
+| 领取任务（开始计进度） | POST | `/activity/growth/tasks/accept` `{task_codes}` |
+| 领取任务奖励 | POST | `/activity/growth/tasks/{task_code}/claim` |
 
 接口定义来自登录后 SPA（usercenter）的 `growthSpace-*.js` API 模块，与桌面端实际请求一致。
 
@@ -265,6 +269,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 - **「积分」和「能量」是两个池子，且旅行奖励只进积分池**：travel 的 `reward_credit` 是积分（Credit），`/activity/growth/energy` 的能量余额不会因为领旅行积分而变化——这是正常现象，不是没到账
 - **旅行/任务领的积分和界面上的「总剩余积分」是同一个池子（2026-10-19 实测确认）**：`POST /billing/meter/get-user-resource-summary` 返回 `TotalCredits: 2661.6000005`，与账户页「剩余积分 2,661.6」逐位一致。该池由 billing/meter 体系管理（套餐/权益包发分、AI 用量扣分），带小数是因为用量按模型倍率（x0.21/x0.65/x1.20）扣小数；旅行每次只发 8~10 的整数分，落到这个池里。官方活动规则原文（App 内成长中心页面）：「积分（Credit）将在用户点击'领取奖励'后实时到账至用户的积分账户，可用于产品内已开通的积分消费场景」；抽奖中奖文案亦注明「积分已发放，**将在几分钟内到账**」——**到账有分钟级延迟**，收到'已领取'推送后立刻去看余额不会变，过几分钟才变；加上展示界面普遍 `Math.floor` 取整（显示 2,661）、AI 同时在扣分，净变化经常看起来就是 0
 - **增长体系没有暴露自己的积分余额接口**（2026-10-16/19 两轮实测：`redeem/summary` 只有兑换档位计数、`lottery/summary` 只有抽奖次数、`lottery/prizes`/`badges`/`tasks`/`buddy/info`/`plans-usage` 均无余额字段）。主账户余额走 `POST /billing/meter/get-user-resource-summary`（前端 usercenter 同款 POST，GET 会 405）；到账验证以**服务端真相**为准：领取后查 `travel/records`，今天这条的 `claimed_at` 已写、`reward_credit` 对得上即判定入账；读不到记录时才降级为 HTTP 200 归档（不再拿能量余额当判据——旧逻辑因此误报过）
-- **只读余额诊断**：`balance-diag.yml`（改 workflow 文件推送即触发 / Actions 页手动触发），`WB_DIAG_ONLY=1` 只读状态不领不派不推送，`WB_PROBE_ENDPOINTS=1` 附带上文全部余额端点探测，记录提交到 `logs/diag/last-diag.txt`
+- **任务奖励自动领取只捡漏、不代劳（2026-10-19 上线并验收）**：对 `accept_status == "completed"` 的任务逐个 `POST /activity/growth/tasks/{code}/claim`；已领取的任务不会回到 completed 列表，天然幂等。**不 accept 未领取的新任务**——官方规则「进度从用户领取任务时刻起算」，什么时候开始哪些任务由用户自己决定。关注公众号类任务（`wb_wechat_oa_subscribe_task`，+100 积分 +5 能量）需要本人在微信里关注「腾讯 WorkBuddy」公众号，自动化做不了。任务清单共 15 个，单个奖励多为 100 积分 + 5 能量（`create_canvas`/`first_buddy` 为 300）
+- **只读余额诊断**：`balance-diag.yml`（改 workflow 文件推送即触发 / Actions 页手动触发），`WB_DIAG_ONLY=1` 只读状态不领不派不推送（任务也只列不领），`WB_PROBE_ENDPOINTS=1` 附带上文全部余额端点探测，记录提交到 `logs/diag/last-diag.txt`
 - **任务奖励（如「和 AI 聊天 30 次」= 100 积分 + 5 能量值）是积分+能量都给，与旅行奖励不同**
 - **能量账目（2026-10-19 实测）**：`/activity/growth/energy` 返回 `balance 13 / total_earned 23 / total_consumed 10`，即 13=23−10。消耗侧已查明：`/activity/growth/buddy/quota` 返回 `cost_per_open: 10`，开 1 次 Buddy 盲盒固定扣 10 能量（affordable=1 表示当前余额还够开 1 次）。获得侧：任务领取每个 +5 能量、连续签到里程碑兑换（7 天 +2 / 14 天 +3 / 28 天 +5）；**每日打卡本身不发能量、旅行只发积分不发能量**，所以「连续签到十几天能量才 13」是正常现象。注意里程碑奖励需手动领（`redeem/summary` 的 `tier_7d_status: available` 但 `tier_7d_count: 0` 就是还躺着没领）
