@@ -12,6 +12,9 @@ logs/actions/*
 !logs/diag/
 logs/diag/*
 !logs/diag/last-diag.txt
+!logs/probe/
+logs/probe/*
+!logs/probe/last-claim-probe.txt
 # runner 上的临时输出文件
 run-output.txt
 __pycache__/
