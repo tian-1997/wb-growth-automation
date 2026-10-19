@@ -546,6 +546,9 @@ def main():
                 ("GET", "/activity/growth/lottery/rewards", None),
                 # 订阅任务状态（"每日可领 100 积分"弹窗的候选来源）
                 ("GET", "/v2/activity/growth/subscribe-task/status", None),
+                # billing 礼物/补偿类状态端点（前端 credits-usage 页同款 POST）
+                ("POST", "/billing/meter/check-gift-claimed", {}),
+                ("POST", "/billing/meter/compensation-status", {}),
             ):
                 try:
                     code, resp = api(method, path, body=body, timeout=15)
