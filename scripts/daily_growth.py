@@ -473,6 +473,8 @@ def main():
                 ("GET", "/activity/growth/lottery/chances", None),
                 ("GET", "/activity/growth/lottery/chances/logs", None),
                 ("GET", "/activity/growth/lottery/rewards", None),
+                # 订阅任务状态（"每日可领 100 积分"弹窗的候选来源）
+                ("GET", "/v2/activity/growth/subscribe-task/status", None),
             ):
                 try:
                     code, resp = api(method, path, body=body, timeout=15)
@@ -480,6 +482,17 @@ def main():
                         json.dumps(redact(resp), ensure_ascii=False)[:800]))
                 except Exception as e:  # noqa: BLE001
                     log("探测 %s %s -> 失败 %s" % (method, path, str(e)[:120]))
+            # 任务清单逐条转储（核对"每日可领 100 积分"是哪个任务、当前状态）
+            try:
+                _, tasks = api("GET", "/v2/activity/growth/tasks")
+                for t in data_of(tasks).get("tasks") or []:
+                    log("任务 %s | %s | %s | accept=%s progress=%s | +%s积分 +%s能量" % (
+                        t.get("task_code"), t.get("task_type"), t.get("title"),
+                        t.get("accept_status"),
+                        json.dumps(t.get("progress"), ensure_ascii=False),
+                        t.get("reward_credit"), t.get("reward_energy")))
+            except Exception as e:  # noqa: BLE001
+                log("任务清单转储失败：%s" % str(e)[:120])
 
     # 结论：签到状态获取成功即算成功（猫猫成败不影响）
     return 0 if checkin.get("ok") else 1
