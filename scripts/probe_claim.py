@@ -96,6 +96,38 @@ def main():
         except Exception as e:  # noqa: BLE001
             log("POST %s -> 失败 %s" % (path, str(e)[:120]))
 
+    log("[3/3] 对照与深挖：tasks/claim 的 code 校验行为 + 隐藏任务 code  candidates")
+    # 对照组：完全不可能的 code。若返回 task not found -> 上面的 daily_checkin/checkin/daily
+    # 是真实存在的任务 code（只是不在 /v2/activity/growth/tasks 列表里=隐藏任务）；
+    # 若同样返回 task not completed -> claim 不校验 code 存在性，上面结果无信息量。
+    for code in (
+        "__bogus_control__",
+        "daily_checkin", "checkin", "daily", "sign_in", "check_in",
+        "daily_sign", "daily_active", "daily_chat", "daily_task",
+        "oil_station", "gas_station", "buddy_daily", "daily_visit",
+        "daily_login", "login", "visit", "active", "daily_use",
+    ):
+        try:
+            http, raw = api("POST", "/activity/growth/tasks/%s/claim" % code, body={})
+            log("claim code=%-18s -> %s %s" % (code, http, raw[:200]))
+        except Exception as e:  # noqa: BLE001
+            log("claim code=%-18s -> 失败 %s" % (code, str(e)[:120]))
+
+    log("[4/4] 任务列表变体（找隐藏的每日任务从哪露出）")
+    for method, path, body in (
+        ("GET", "/v2/activity/growth/tasks", None),
+        ("GET", "/activity/growth/tasks", None),
+        ("GET", "/v2/activity/growth/tasks?type=daily", None),
+        ("GET", "/v2/activity/growth/tasks?include_daily=1", None),
+        ("GET", "/v2/activity/growth/daily-tasks", None),
+        ("GET", "/v2/activity/growth/tasks/daily", None),
+    ):
+        try:
+            code, raw = api(method, path, body=body)
+            log("%s %s -> %s %s" % (method, path, code, raw[:600]))
+        except Exception as e:  # noqa: BLE001
+            log("%s %s -> 失败 %s" % (method, path, str(e)[:120]))
+
     return 0
 
 
