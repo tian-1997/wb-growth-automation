@@ -468,6 +468,11 @@ def main():
                 ("POST", "/billing/meter/get-user-resource", {}),
                 ("POST", "/billing/meter/get-user-resource-free-packages", {}),
                 ("POST", "/billing/meter/get-user-resource-paid-packages", {}),
+                # 能量收支溯源：盲盒配额（能量消耗场景）、抽奖机会与流水
+                ("GET", "/activity/growth/buddy/quota", None),
+                ("GET", "/activity/growth/lottery/chances", None),
+                ("GET", "/activity/growth/lottery/chances/logs", None),
+                ("GET", "/activity/growth/lottery/rewards", None),
             ):
                 try:
                     code, resp = api(method, path, body=body, timeout=15)
