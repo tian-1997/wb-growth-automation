@@ -224,6 +224,8 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 
 | 功能 | 方法 | 路径 |
 |---|---|---|
+| **每日打卡状态** | POST | `/billing/meter/checkin-activity-status` |
+| **每日打卡领取（100 积分）** | POST | `/billing/meter/daily-checkin` |
 | 派猫状态 | GET | `/activity/growth/buddy/travel/status` |
 | 领到家积分 | POST | `/activity/growth/buddy/travel/claim` |
 | 派出新一趟 | POST | `/activity/growth/buddy/travel/depart` `{location_id}` |
@@ -235,8 +237,10 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 | 任务清单 | GET | `/v2/activity/growth/tasks` |
 | 领取任务（开始计进度） | POST | `/activity/growth/tasks/accept` `{task_codes}` |
 | 领取任务奖励 | POST | `/activity/growth/tasks/{task_code}/claim` |
+| 主账户积分汇总 | POST | `/billing/meter/get-user-resource-summary` |
+| 积分发放流水 | POST | `/billing/meter/get-user-resource` |
 
-接口定义来自登录后 SPA（usercenter）的 `growthSpace-*.js` API 模块，与桌面端实际请求一致。
+接口定义来自登录后 SPA（usercenter）的 `growthSpace-*.js` API 模块 + 桌面 App 主进程 `main/account.js`（BackendProvider，含每日打卡/账务类端点），与桌面端实际请求一致。
 
 ---
 
@@ -271,7 +275,7 @@ GitHub 官方文档原文：*"The schedule event can be delayed during periods o
 - **增长体系没有暴露自己的积分余额接口**（2026-10-16/19 两轮实测：`redeem/summary` 只有兑换档位计数、`lottery/summary` 只有抽奖次数、`lottery/prizes`/`badges`/`tasks`/`buddy/info`/`plans-usage` 均无余额字段）。主账户余额走 `POST /billing/meter/get-user-resource-summary`（前端 usercenter 同款 POST，GET 会 405）；到账验证以**服务端真相**为准：领取后查 `travel/records`，今天这条的 `claimed_at` 已写、`reward_credit` 对得上即判定入账；读不到记录时才降级为 HTTP 200 归档（不再拿能量余额当判据——旧逻辑因此误报过）
 - **任务奖励自动领取只捡漏、不代劳（2026-10-19 上线并验收）**：对 `accept_status == "completed"` 的任务逐个 `POST /activity/growth/tasks/{code}/claim`；已领取的任务不会回到 completed 列表，天然幂等。**不 accept 未领取的新任务**——官方规则「进度从用户领取任务时刻起算」，什么时候开始哪些任务由用户自己决定。关注公众号类任务（`wb_wechat_oa_subscribe_task`，+100 积分 + 5 能量）需要本人在微信里关注「腾讯 WorkBuddy」公众号，自动化做不了。任务清单共 15 个，单个奖励多为 100 积分 + 5 能量（`create_canvas`/`first_buddy` 为 300）
 - **积分发放流水可回溯（2026-10-19 新增）**：`POST /billing/meter/get-user-resource` 的 `Accounts` 是逐笔发放记录——每一笔成长体系积分（任务领取/旅行领取/菜单弹窗领取）都会生成一条「CodeBuddy个人版国内运营裂变包」（TCACA_code_007）子账户，`CreateTime` 与领取时刻逐笔对应（如旅行 `claimed_at` 与流水时间戳完全一致）。想回溯任意一笔积分来源，看流水的 `PackageName/CreateTime` 即可。**注意包名不区分发放口**——任务和旅行都记在裂变包下，包名只能证明"走的是成长发放通道"，不能单独证明是哪个功能
-- **App 菜单弹窗「Buddy加油站·每日可领100积分」的发放口无法从本地定位**：该文案在整个 App 安装包（asar）里不存在，用户中心前端 JS 里也没有对应端点什么——App 自身没有任何 growth 接口（全 asar 搜索为零），菜单/弹窗/领取动作均由服务端配置下发，端点在配置里、不在代码里。2026-10-19 11:03 用户经该弹窗领取 +100 积分 +5 能量，流水落账 11:03:01（裂变包通道），签名与任务奖励一致但任务清单/profile/badges/抽奖/里程碑状态全部无变化——说明发放口在标准任务体系之外，待用户回报点击后的界面行为再定位
+- **App 菜单弹窗「Buddy加油站·每日可领100积分」的发放口已定位并接入自动化（2026-10-19）**：就是 **`POST /billing/meter/daily-checkin`**（配套只读状态 `POST /billing/meter/checkin-activity-status`）。定位路径：本地存储键 `pcfc.lastClaimBjDay`（客户端「每日领取」的日跟踪）→ 主进程 `main/account.js` 的 `BackendProvider.checkin`。返回 `{code, msg, credit, streak_days, is_streak_day}`，错误码 1001=已领取 / 1002=不符合条件 / 1003=活动结束；状态接口返回 `active / today_checked_in / streak_days / daily_credit / today_credit / is_streak_day / streak_bonus_* / checkin_dates`。自动化流程：先查状态，`active && !today_checked_in` 才领取；服务端返回 1001 或状态显示已领时不重复领（用户手动领过也安全）。奖励与任务/旅行同池（billing/meter 主账户积分池），连签奖励日额外发 `streak_bonus_credit`。本地键不在安装包里（加密缓存/运行时下发），但端点固定，按端点领取与 App 内点击完全等价
 - **只读余额诊断**：`balance-diag.yml`（改 workflow 文件推送即触发 / Actions 页手动触发），`WB_DIAG_ONLY=1` 只读状态不领不派不推送（任务也只列不领），`WB_PROBE_ENDPOINTS=1` 附带上文全部余额端点探测，记录提交到 `logs/diag/last-diag.txt`
 - **任务奖励（如「和 AI 聊天 30 次」= 100 积分 + 5 能量值）是积分+能量都给，与旅行奖励不同**
 - **能量账目（2026-10-19 实测）**：`/activity/growth/energy` 返回 `balance 13 / total_earned 23 / total_consumed 10`，即 13=23−10。消耗侧已查明：`/activity/growth/buddy/quota` 返回 `cost_per_open: 10`，开 1 次 Buddy 盲盒固定扣 10 能量（affordable=1 表示当前余额还够开 1 次）。获得侧：任务领取每个 +5 能量、连续签到里程碑兑换（7 天 +2 / 14 天 +3 / 28 天 +5）；**每日打卡本身不发能量、旅行只发积分不发能量**，所以「连续签到十几天能量才 13」是正常现象。注意里程碑奖励需手动领（`redeem/summary` 的 `tier_7d_status: available` 但 `tier_7d_count: 0` 就是还躺着没领）

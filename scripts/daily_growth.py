@@ -3,13 +3,19 @@
 """
 daily_growth.py — WorkBuddy「Buddy 加油站 / 成长中心」每日自动化。
 
-一次运行做三件事（状态分开记录、分开上报）：
-  1) 签到（Buddy 加油站打卡 / 成长状态）
+一次运行做五件事（状态分开记录、分开上报）：
+  1) 每日打卡领取（Buddy 加油站「每日可领 100 积分」）
+     - POST /billing/meter/checkin-activity-status 读活动状态；
+       今日未领且活动进行中 -> POST /billing/meter/daily-checkin 领取。
+     - 即 App 客户端菜单弹窗「立即领取」的同一发放口（端点来自主进程
+       main/account.js 的 BackendProvider.checkin）。服务端已记录
+       today_checked_in / 返回 1001 时不重复领。
+  2) 签到（Buddy 加油站打卡 / 成长状态）
      - 读取 profile / streak / energy / heatmap，报告今日打卡状态。
      - 说明：该体系的每日「打卡/签到」由使用 WorkBuddy 的行为自动记录，
        服务端没有"手动签到"接口（已核对前端 API 模块确认）。因此这一步是
        "读取并报告"今日签到状态；只要接口调用成功即视为签到状态获取成功。
-  2) 派猫猫旅行（buddy travel）
+  3) 派猫猫旅行（buddy travel）
      - 先 GET travel/status：
          state == "arrived"  -> POST travel/claim 领跑到家的积分
      - 再判断能否派新的一趟：
@@ -17,7 +23,7 @@ daily_growth.py — WorkBuddy「Buddy 加油站 / 成长中心」每日自动化
          才 POST travel/depart {location_id}；今天已派过(daily_limit_reached)
          或猫在旅行中(traveling/arrived)则不派。
      - 猫猫部分任何失败都不影响"签到"结论。
-  3) 任务奖励（捡漏）
+  4) 任务奖励（捡漏）
      - GET /v2/activity/growth/tasks，对 accept_status == "completed"
        （已完成待领）的任务逐个 POST /activity/growth/tasks/{code}/claim。
      - 只领不接：不 accept 未领取的新任务（任务进度从用户手动领取时刻起算）。
@@ -151,7 +157,117 @@ def _credits_balance():
         return None
 
 
-# ---------------- 第一部分：签到（成长状态，读取并报告） ----------------
+# ---------------- 第一部分：每日打卡领取（Buddy 加油站「每日可领 100 积分」） ----------------
+DAILY_CHECKIN_STATUS = "/billing/meter/checkin-activity-status"
+DAILY_CHECKIN_CLAIM = "/billing/meter/daily-checkin"
+# App 主进程 main/account.js 的 mapCheckinStatus 错误码
+_CHECKIN_ERR = {1001: "今日已领取", 1002: "当前不符合领取条件", 1003: "活动已结束"}
+
+
+def do_daily_checkin():
+    """Buddy 加油站「每日可领 100 积分」打卡领取（客户端菜单「立即领取」同款）。
+
+    端点来自 App 主进程 main/account.js（CloudAccountRepo.checkin：
+    菜单弹窗点击后服务端即时发放的那个口，billingPrefix 为空串）：
+      POST /billing/meter/checkin-activity-status
+          -> data: {active, today_checked_in, streak_daily..., streak_days,
+             daily_credit, today_credit, is_streak_day, streak_bonus_days,
+             streak_bonus_credit, checkin_dates, claim_button_text, ...}
+      POST /billing/meter/daily-checkin
+          -> {code, msg, credit, streak_days, is_streak_day}
+    错误码：1001 已领取 / 1002 不符合条件 / 1003 活动结束。
+    客户端本地用 localStorage「pcfc.lastClaimBjDay」跟踪当日是否已领
+    （PC 端每日领取的日跟踪键）；服务端 today_checked_in 才是唯一真相，
+    本地键只是防重复点击。奖励进主账户积分池（billing/meter），与任务/
+    旅行同池。今天用户已手动领过时，接口返回 1001，不会重复发放。
+    """
+    result = {"ok": False, "lines": [], "actions": []}
+    try:
+        _, status = api("POST", DAILY_CHECKIN_STATUS, body={})
+    except Exception as e:  # noqa: BLE001
+        result["lines"].append("每日打卡：读取状态失败：%s" % e)
+        result["failed"] = True
+        return result
+
+    sd = data_of(status)
+    if not isinstance(sd, dict) or not sd:
+        result["lines"].append("每日打卡：状态返回异常：%s" % redact(status))
+        result["failed"] = True
+        return result
+
+    active = sd.get("active")
+    today_checked = bool(sd.get("today_checked_in"))
+    streak_days = sd.get("streak_days")
+    daily_credit = sd.get("daily_credit")
+    today_credit = sd.get("today_credit")
+    is_streak = bool(sd.get("is_streak_day"))
+    bonus_days = sd.get("streak_bonus_days")
+    bonus_credit = sd.get("streak_bonus_credit")
+    result["status"] = redact(sd)
+    result["ok"] = True
+
+    def _streak_suffix():
+        s = ""
+        if streak_days is not None:
+            s += "，连续 %s 天" % streak_days
+        if is_streak and bonus_credit:
+            s += "（连签 %s 天额外 +%s 积分）" % (bonus_days or streak_days, bonus_credit)
+        return s
+
+    if active is False:
+        result["lines"].append("每日打卡：活动未开始或已结束（active=false），跳过。")
+        return result
+
+    if today_checked:
+        credited = today_credit if today_credit is not None else daily_credit
+        result["lines"].append(
+            "每日打卡：今日已领 %s 积分%s（服务端已记录，不重复领）。"
+            % (credited, _streak_suffix()))
+        return result
+
+    if os.environ.get("WB_DIAG_ONLY") == "1":
+        # 诊断模式只读：列出可领状态但不领取（balance-diag 承诺零副作用）
+        result["lines"].append(
+            "每日打卡：今日未领，可领 %s 积分%s（诊断模式不领取）。"
+            % (daily_credit, _streak_suffix()))
+        return result
+
+    try:
+        http, claim = api("POST", DAILY_CHECKIN_CLAIM, body={})
+    except Exception as e:  # noqa: BLE001
+        result["lines"].append("每日打卡：领取失败：%s" % e)
+        result["failed"] = True
+        return result
+
+    cd = claim if isinstance(claim, dict) else {}
+    d = data_of(claim)
+    code = cd.get("code")
+    if code == 0:
+        got = d.get("credit", cd.get("credit", daily_credit))
+        sd_days = d.get("streak_days", cd.get("streak_days", streak_days))
+        sd_streak = d.get("is_streak_day", cd.get("is_streak_day"))
+        line = "每日打卡：已领取 +%s 积分" % got
+        if sd_days is not None:
+            line += "，连续 %s 天" % sd_days
+        if sd_streak:
+            line += "（今日为连签奖励日）"
+        line += "（HTTP %s）" % http
+        result["lines"].append(line)
+        result["actions"].append("daily_checkin")
+        result["claim_raw"] = redact(claim)
+    elif code == 1001:
+        # 状态显示未领但服务端说已领：以服务端为准，不算失败
+        result["lines"].append("每日打卡：服务端返回今日已领取（1001），不重复领。")
+        result["claim_raw"] = redact(claim)
+    else:
+        msg = cd.get("msg") or _CHECKIN_ERR.get(code, "未知错误")
+        result["lines"].append("每日打卡：领取未成功（code=%s）：%s" % (code, msg))
+        result["claim_raw"] = redact(claim)
+        result["failed"] = True
+    return result
+
+
+# ---------------- 第二部分：签到（成长状态，读取并报告） ----------------
 def do_checkin():
     result = {"ok": False, "lines": [], "detail": {}}
     try:
@@ -404,7 +520,7 @@ def do_tasks():
 
 
 # ---------------- 企业微信推送 ----------------
-def push_wecom(checkin, travel, tasks=None):
+def push_wecom(checkin, travel, daily=None, tasks=None):
     if not WEBHOOK:
         log("[wecom] 未配置 WB_WECOM_WEBHOOK，跳过推送。")
         return False
@@ -427,6 +543,12 @@ def push_wecom(checkin, travel, tasks=None):
     else:
         t_head = "完成" if t_ok else "失败/跳过"
 
+    # 每日打卡小节：领到了（daily_checkin）或出错时才出现
+    daily_section = ""
+    if daily and ((daily.get("actions") or []) or daily.get("failed")):
+        d_lines = "\n".join("> %s" % x for x in daily.get("lines", [])) or "> 无"
+        daily_section = "\n**🎯 每日打卡（100 积分）**\n%s" % d_lines
+
     # 任务小节：只在真的领到过奖励时才出现（避免天天推送"暂无待领"刷屏）
     tasks_section = ""
     if tasks and (tasks.get("actions") or []):
@@ -434,11 +556,12 @@ def push_wecom(checkin, travel, tasks=None):
         tasks_section = "\n**📋 任务奖励**：已领取\n%s" % k_lines
 
     content = (
-        "**%s**\n"
+        "**%s**%s\n"
         "**🛢 签到（Buddy 加油站）**：%s\n%s\n"
         "**🐱 派猫猫旅行**：%s\n%s%s"
     ) % (
         title,
+        daily_section,
         "成功" if c_ok else "失败",
         c_lines,
         t_head,
@@ -470,43 +593,54 @@ def main():
         log("错误：未设置 WB_TOKEN。")
         return 1
 
-    log("== 1) 签到（成长状态） ==")
+    log("== 1) 每日打卡领取（Buddy 加油站 100 积分） ==")
+    daily = do_daily_checkin()
+    for x in daily.get("lines", []):
+        log("   " + x)
+
+    log("== 2) 签到（成长状态） ==")
     checkin = do_checkin()
     for x in checkin.get("lines", []):
         log("   " + x)
 
-    log("== 2) 派猫猫旅行 ==")
+    log("== 3) 派猫猫旅行 ==")
     travel = do_travel()
     for x in travel.get("lines", []):
         log("   " + x)
 
-    log("== 3) 任务奖励（捡漏已完成的） ==")
+    log("== 4) 任务奖励（捡漏已完成的） ==")
     tasks_res = do_tasks()
     for x in tasks_res.get("lines", []):
         log("   " + x)
 
-    log("== 4) 推送企业微信 ==")
+    log("== 5) 推送企业微信 ==")
     # 多档位轮询模式下，只有"有实质动作"或"出错"才推送，避免重复刷屏：
+    #   - 每日打卡：今天新领了 100 积分（daily_checkin）
     #   - 旅行：领到了积分（claim）或派出了新趟（depart）
     #   - 任务：领到了已完成的任务奖励（task_claim）
-    #   - 签到/猫猫任一环节出错（失败必须可见）
+    #   - 签到/猫猫/打卡任一环节出错（失败必须可见）
     #   - 凭证续期写回失败（自动续期链约 60 天后会断，需提前知晓）
     # 静默运行 = 心跳机制：群里没消息且 Actions 无新记录 = 调度器丢槽位。
     # 例外：设 WB_FORCE_PUSH=1 时无条件推送（调试/验收用）。
-    acts = (travel.get("actions") or []) + (tasks_res.get("actions") or [])
+    acts = ((daily.get("actions") or []) + (travel.get("actions") or [])
+            + (tasks_res.get("actions") or []))
     renew_warn = os.environ.get("WB_RENEW_WARN") == "1"
     force_push = os.environ.get("WB_FORCE_PUSH") == "1"
-    actionable = bool(acts) or not checkin.get("ok") or not travel.get("ok") or renew_warn
+    actionable = (bool(acts) or not checkin.get("ok") or not travel.get("ok")
+                  or daily.get("failed") or renew_warn)
     if os.environ.get("WB_DIAG_ONLY") == "1":
         log("[wecom] 诊断模式，不推送。")
     elif actionable or force_push:
-        push_wecom(checkin, travel, tasks_res)
+        push_wecom(checkin, travel, daily, tasks_res)
     else:
         log("[wecom] 本次无实质动作（旅行中/今日已派过），跳过推送。")
 
     # 脱敏原始返回（验收用）：打印到 stderr，不含 token
     if os.environ.get("WB_DEBUG_RAW") == "1":
         log("---- 脱敏原始返回 ----")
+        log("打卡.status:", json.dumps(daily.get("status", {}), ensure_ascii=False)[:1500])
+        if "claim_raw" in daily:
+            log("打卡.claim:", json.dumps(daily["claim_raw"], ensure_ascii=False)[:600])
         log("签到.raw:", json.dumps(checkin.get("raw", {}), ensure_ascii=False)[:2500])
         log("猫猫.status:", json.dumps(travel.get("status", {}), ensure_ascii=False)[:1200])
         if "claim_raw" in travel:

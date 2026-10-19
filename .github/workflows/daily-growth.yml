@@ -25,6 +25,13 @@ on:
 # 2026-10-19 10:0x：新增「任务奖励捡漏」（do_tasks：领取 accept_status=completed
 # 的任务奖励），本次改动一并触发即时运行做验收（会派今天的猫 + 领 expert_5 奖励）。
 
+# 2026-10-19 13:0x：新增「每日打卡领取」（do_daily_checkin：App 菜单弹窗
+# 「Buddy加油站·每日可领100积分」的同一发放口 = POST /billing/meter/daily-checkin，
+# 端点来自主进程 main/account.js 的 CloudAccountRepo.checkin）。流程：先
+# POST /billing/meter/checkin-activity-status 读状态，active 且今日未领才领；
+# 服务端 1001（已领取）/状态已领时不重复领。本次改动触发即时运行做验收
+# （今天 11:03 用户已手动领过，预期返回"今日已领 100 积分"并展示连签天数）。
+
 # 避免同一时刻重复跑排队
 concurrency:
   group: daily-growth
