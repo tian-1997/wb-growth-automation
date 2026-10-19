@@ -1,0 +1,85 @@
+name: claim-probe
+
+# 一次性发放口探测（2026-10-19）：定位 App 用户菜单弹窗「Buddy加油站·每日可领100积分」
+# 点击后直接到账 +100 积分 +5 能量（无页面无弹窗）所调的端点。
+# 该弹窗文案与端点是服务端下发配置：App asar 与用户中心前端 JS 全量搜索均无此端点。
+# 探测内容见 scripts/probe_claim.py：GET 状态端点（零副作用）+ POST claim 候选端点
+# （今日额度用户已手动领过，命中正确端点会返回"已领取"类错误=识别信号）。
+# 仅在需要重新探测时改本文件推送触发；日常不要动它。
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/claim-probe.yml']
+  workflow_dispatch: {}
+
+concurrency:
+  group: claim-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve Python (command -v, no hardcoded version)
+        id: py
+        run: |
+          PY=$(command -v python3 || command -v python || true)
+          if [ -z "$PY" ]; then echo "::error::python3/python not found"; exit 1; fi
+          echo "python=$PY" >> "$GITHUB_OUTPUT"
+          "$PY" --version
+
+      - name: Renew access token (seamless, optional)
+        id: renew
+        continue-on-error: true
+        env:
+          WB_REFRESH_TOKEN: ${{ secrets.WB_REFRESH_TOKEN }}
+          WB_GH_PAT: ${{ secrets.WB_GH_PAT }}
+        run: |
+          if [ -z "${WB_REFRESH_TOKEN:-}" ]; then
+            echo "未配置 WB_REFRESH_TOKEN，跳过无感续签，回退 WB_TOKEN"
+            exit 0
+          fi
+          set +e
+          AT=$("${{ steps.py.outputs.python }}" scripts/renew_token.py)
+          RC=$?
+          set -e
+          if [ "$RC" -eq 0 ] || [ "$RC" -eq 2 ]; then
+            echo "::add-mask::$AT"
+            echo "WB_TOKEN=$AT" >> "$GITHUB_ENV"
+          else
+            echo "::warning::token 续签失败，本次回退到 WB_TOKEN"
+            exit 1
+          fi
+
+      - name: Probe claim endpoints (one-shot)
+        env:
+          WB_TOKEN: ${{ env.WB_TOKEN || secrets.WB_TOKEN }}
+        run: |
+          set +e
+          "${{ steps.py.outputs.python }}" scripts/probe_claim.py > probe-output.txt 2>&1
+          RUN_RC=$?
+          set -e
+          cat probe-output.txt
+          echo "RUN_RC=$RUN_RC" | tee -a probe-output.txt
+          exit "$RUN_RC"
+
+      - name: Publish probe record (redacted)
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p logs/probe
+          cp probe-output.txt logs/probe/last-claim-probe.txt
+          git config user.name "WorkBuddy CI"
+          git config user.email "noreply@local"
+          git add logs/probe/last-claim-probe.txt
+          git diff --cached --quiet && { echo "probe record 无变化，跳过提交"; exit 0; }
+          git -c user.name="WorkBuddy CI" -c user.email="noreply@local" \
+            commit -m "ci: claim probe record $(date -u '+%Y-%m-%d %H:%M UTC')" || exit 0
+          git pull --rebase origin main >/dev/null 2>&1 || true
+          git push origin HEAD:main || echo "::warning::probe record 推送失败（不影响本次探测结果）"
