@@ -18,44 +18,59 @@ POST /activity/growth/daily-reward/claim -> 404 404 page not found
 POST /v2/activity/growth/daily-reward/claim -> 404 404 page not found
 POST /activity/growth/subscribe-task/claim -> 404 404 page not found
 POST /v2/activity/growth/subscribe-task/claim -> 404 404 page not found
-POST /activity/growth/tasks/daily_checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"7489e1fb-38a4-41eb-8ca0-bfaa1fa057f5"}
-POST /activity/growth/tasks/checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"dfd4cc97-1d8e-4e69-ba54-06fb842294cf"}
-POST /activity/growth/tasks/daily/claim -> 400 {"code":400,"msg":"task not completed","requestId":"cb9ff20d-9867-44da-8cbb-a67348509e8a"}
+POST /activity/growth/tasks/daily_checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"fc7b7009-6853-46b7-8b89-77885ec560e3"}
+POST /activity/growth/tasks/checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"4269c99a-9cff-47bd-b894-35a8e95e1b4e"}
+POST /activity/growth/tasks/daily/claim -> 400 {"code":400,"msg":"task not completed","requestId":"f9b10145-88e8-45ae-a1e2-54f8848596a0"}
 POST /activity/growth/sign/claim -> 404 404 page not found
 POST /v2/activity/growth/sign/claim -> 404 404 page not found
 [3/3] 对照与深挖：tasks/claim 的 code 校验行为 + 隐藏任务 code  candidates
-claim code=__bogus_control__  -> 400 {"code":400,"msg":"task not completed","requestId":"7aa91ed1-fcbf-4cf4-a398-63d31c22133d"}
-claim code=daily_checkin      -> 400 {"code":400,"msg":"task not completed","requestId":"cfd1b973-134f-4af8-9692-e41da6614bef"}
-claim code=checkin            -> 400 {"code":400,"msg":"task not completed","requestId":"ba1e893b-96f2-43a5-a12a-6d7bf2221fdd"}
-claim code=daily              -> 400 {"code":400,"msg":"task not completed","requestId":"d0258872-29a3-4868-b928-4853717c50eb"}
-claim code=sign_in            -> 400 {"code":400,"msg":"task not completed","requestId":"7ea9ca75-67ad-4b7d-89e2-2b2a61f1ad64"}
-claim code=check_in           -> 400 {"code":400,"msg":"task not completed","requestId":"31145cc8-b8dc-44c2-884d-f61e082c60f9"}
-claim code=daily_sign         -> 400 {"code":400,"msg":"task not completed","requestId":"66a35bac-a3f9-4066-8c8c-63f5f4ada093"}
-claim code=daily_active       -> 400 {"code":400,"msg":"task not completed","requestId":"507837d5-929f-44ca-96e8-c69d8cb78dfe"}
-claim code=daily_chat         -> 400 {"code":400,"msg":"task not completed","requestId":"b00323f0-e5d5-4314-b910-70a1d18e9f30"}
-claim code=daily_task         -> 400 {"code":400,"msg":"task not completed","requestId":"86cc451a-c33a-473f-baf0-df468222d5e0"}
-claim code=oil_station        -> 400 {"code":400,"msg":"task not completed","requestId":"3475d909-aa61-4665-afc1-70c75ad0d9ae"}
-claim code=gas_station        -> 400 {"code":400,"msg":"task not completed","requestId":"507c730b-d136-4ca0-8729-c58e33a1c77f"}
-claim code=buddy_daily        -> 400 {"code":400,"msg":"task not completed","requestId":"17984a3d-7e18-40b6-9f6a-9925040aae57"}
-claim code=daily_visit        -> 400 {"code":400,"msg":"task not completed","requestId":"8b8c24f5-7ac3-4e12-8af6-e0fab2bf5870"}
-claim code=daily_login        -> 400 {"code":400,"msg":"task not completed","requestId":"2dd20828-42f3-4e06-93f1-b9ad1eba5220"}
-claim code=login              -> 400 {"code":400,"msg":"task not completed","requestId":"ecef23d1-e1aa-4436-8bc7-48e9db2606d1"}
-claim code=visit              -> 400 {"code":400,"msg":"task not completed","requestId":"7260776b-083b-4e3b-bb3e-b222959104e4"}
-claim code=active             -> 400 {"code":400,"msg":"task not completed","requestId":"ca5c6999-3196-43f2-9f7d-a7008b8903be"}
-claim code=daily_use          -> 400 {"code":400,"msg":"task not completed","requestId":"e5c44755-416b-4168-91b4-bf967833779d"}
+claim code=__bogus_control__  -> 400 {"code":400,"msg":"task not completed","requestId":"3298eb47-f40d-447c-ab05-868aac7ea79a"}
+claim code=daily_checkin      -> 400 {"code":400,"msg":"task not completed","requestId":"caddd466-247a-4f0f-8118-fca3d0e2ec80"}
+claim code=checkin            -> 400 {"code":400,"msg":"task not completed","requestId":"c9c97761-ec93-4ac0-9e37-5ecfd476b547"}
+claim code=daily              -> 400 {"code":400,"msg":"task not completed","requestId":"1269dfbc-f5be-418c-a4cf-e89824451e08"}
+claim code=sign_in            -> 400 {"code":400,"msg":"task not completed","requestId":"8af73845-eabd-422f-8d0b-753532ce3c32"}
+claim code=check_in           -> 400 {"code":400,"msg":"task not completed","requestId":"0fd43b26-6aa3-41ee-977f-985bcc782376"}
+claim code=daily_sign         -> 400 {"code":400,"msg":"task not completed","requestId":"8299e21e-e253-42bc-af22-9dcf79b4ba49"}
+claim code=daily_active       -> 400 {"code":400,"msg":"task not completed","requestId":"87fe428f-5066-481a-889e-759ce50da773"}
+claim code=daily_chat         -> 400 {"code":400,"msg":"task not completed","requestId":"e839adcd-cd86-4bcd-83f8-632322cbd49a"}
+claim code=daily_task         -> 400 {"code":400,"msg":"task not completed","requestId":"ebb866d1-aae9-420a-aa0a-f48eb974f9ae"}
+claim code=oil_station        -> 400 {"code":400,"msg":"task not completed","requestId":"6dbecef5-97ab-45f5-ac98-befc44892e31"}
+claim code=gas_station        -> 400 {"code":400,"msg":"task not completed","requestId":"6ccfae92-130d-43ea-80c0-60a5828170b8"}
+claim code=buddy_daily        -> 400 {"code":400,"msg":"task not completed","requestId":"e8b20dbe-d4e2-4ca2-86ef-9abb5ac88c17"}
+claim code=daily_visit        -> 400 {"code":400,"msg":"task not completed","requestId":"70095991-9a29-4029-ba82-9a2def6e6a86"}
+claim code=daily_login        -> 400 {"code":400,"msg":"task not completed","requestId":"0fcf01a7-d6f9-4a97-8a54-7240ab347300"}
+claim code=login              -> 400 {"code":400,"msg":"task not completed","requestId":"bfd17c76-338f-4f9d-930c-49a70b826164"}
+claim code=visit              -> 400 {"code":400,"msg":"task not completed","requestId":"c92c3236-ec96-45ea-9367-46f06a014d23"}
+claim code=active             -> 400 {"code":400,"msg":"task not completed","requestId":"a988e59d-ef6e-4546-a0b4-6200006c6647"}
+claim code=daily_use          -> 400 {"code":400,"msg":"task not completed","requestId":"15034895-fe9a-42dd-ac71-47c786574ae4"}
 [4/4] 任务列表变体（找隐藏的每日任务从哪露出）
-GET /v2/activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"29c24060-9f6d-4378-8233-539011e30567","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
-GET /activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"406c6fb3-5c0e-47d4-b428-49ca019e3893","data":{"tasks":[{"task_id":1,"code":"first_chat","title":"完成一次对话","description":"使用 WorkBuddy 完成至少一次对话交互","icon_url":"","level_name":"养虾尝试","status":"available","url":""},{"task_id":2,"code":"skill_installed","title":"完成技能安装","description":"成功安装至少一个 WorkBuddy 技能","icon_url":"","level_name":"养虾入门","status":"available","url":""},{"task_id":3,"code":"wechat_linked","title":"链接微信","description":"完成 WorkBuddy 设置，成功链接到微信","icon_url":"","level_name":"养虾熟手","status":"available","url":""},{"task_id":4,"code":"expert_summoned","tit
-GET /v2/activity/growth/tasks?type=daily -> 200 {"code":0,"msg":"OK","requestId":"effdbc18-540e-4e20-9876-438c2dedd619","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
-GET /v2/activity/growth/tasks?include_daily=1 -> 200 {"code":0,"msg":"OK","requestId":"3e9446d1-cb83-4e5e-97ae-13c50dee9dc7","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /v2/activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"e6cf0528-1ed3-4765-bf2b-3637f826695a","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /activity/growth/tasks -> 200 {"code":0,"msg":"OK","requestId":"ff2b36fb-558e-4dbf-a949-8ca42e5e8266","data":{"tasks":[{"task_id":1,"code":"first_chat","title":"完成一次对话","description":"使用 WorkBuddy 完成至少一次对话交互","icon_url":"","level_name":"养虾尝试","status":"available","url":""},{"task_id":2,"code":"skill_installed","title":"完成技能安装","description":"成功安装至少一个 WorkBuddy 技能","icon_url":"","level_name":"养虾入门","status":"available","url":""},{"task_id":3,"code":"wechat_linked","title":"链接微信","description":"完成 WorkBuddy 设置，成功链接到微信","icon_url":"","level_name":"养虾熟手","status":"available","url":""},{"task_id":4,"code":"expert_summoned","tit
+GET /v2/activity/growth/tasks?type=daily -> 200 {"code":0,"msg":"OK","requestId":"ba5c2a67-6a3f-460a-a1d9-296b52a4449c","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
+GET /v2/activity/growth/tasks?include_daily=1 -> 200 {"code":0,"msg":"OK","requestId":"0134a8a5-d4b7-487f-aefc-a398775ea52c","data":{"tasks":[{"task_code":"create_canvas","title":"体验「设计创意模式」","description":"前往Workbuddy，进入「新建任务」，切换滑块到「设计创意」模式，并创建1个画布。例如：帮我设计一个移动端登录页。","task_desc":"在「设计创意」模式下成功创建1个画布。","task_type":"single","jump_url":"workbuddy://chat","valid_start":null,"valid_end":null,"reward_credit":300,"reward_energy":5,"reward_buddy":false,"template_id_fixed":0,"badge_name":"","accept_status":"not_accepted","progress":null,"is_pinned":false,"is_new":true,"icon_url":"https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/task
 GET /v2/activity/growth/daily-tasks -> 404 404 page not found
 GET /v2/activity/growth/tasks/daily -> 404 404 page not found
 [5/5] v1 等级任务清单全量 + 逐 code 领取
-v1 全量: {"code":0,"msg":"OK","requestId":"a8dd65ea-6c18-404d-bcc8-8ffb68b1e9b0","data":{"tasks":[{"task_id":1,"code":"first_chat","title":"完成一次对话","description":"使用 WorkBuddy 完成至少一次对话交互","icon_url":"","level_name":"养虾尝试","status":"available","url":""},{"task_id":2,"code":"skill_installed","title":"完成技能安装","description":"成功安装至少一个 WorkBuddy 技能","icon_url":"","level_name":"养虾入门","status":"available","url":""},{"task_id":3,"code":"wechat_linked","title":"链接微信","description":"完成 WorkBuddy 设置，成功链接到微信","icon_url":"","level_name":"养虾熟手","status":"available","url":""},{"task_id":4,"code":"expert_summoned","title":"召唤一次专家","description":"使用 WorkBuddy 召唤并完成一次专家交互","icon_url":"","level_name":"玩虾老手","status":"available","url":""},{"task_id":5,"code":"template_used","title":"使用一次模板","description":"使用至少一个 WorkBuddy 模板完成任务","icon_url":"","level_name":"控虾大神","status":"available","url":""}]}}
+v1 全量: {"code":0,"msg":"OK","requestId":"5d471027-4536-47e2-aeb2-571626fdf386","data":{"tasks":[{"task_id":1,"code":"first_chat","title":"完成一次对话","description":"使用 WorkBuddy 完成至少一次对话交互","icon_url":"","level_name":"养虾尝试","status":"available","url":""},{"task_id":2,"code":"skill_installed","title":"完成技能安装","description":"成功安装至少一个 WorkBuddy 技能","icon_url":"","level_name":"养虾入门","status":"available","url":""},{"task_id":3,"code":"wechat_linked","title":"链接微信","description":"完成 WorkBuddy 设置，成功链接到微信","icon_url":"","level_name":"养虾熟手","status":"available","url":""},{"task_id":4,"code":"expert_summoned","title":"召唤一次专家","description":"使用 WorkBuddy 召唤并完成一次专家交互","icon_url":"","level_name":"玩虾老手","status":"available","url":""},{"task_id":5,"code":"template_used","title":"使用一次模板","description":"使用至少一个 WorkBuddy 模板完成任务","icon_url":"","level_name":"控虾大神","status":"available","url":""}]}}
 v1 codes: ['first_chat', 'skill_installed', 'wechat_linked', 'expert_summoned', 'template_used']
-v1 claim first_chat           -> 400 {"code":400,"msg":"task not completed","requestId":"a19ed6e9-6ee8-4f61-b66a-16c9193c816e"}
-v1 claim skill_installed      -> 400 {"code":400,"msg":"task not completed","requestId":"7a78b8bf-dda7-46ac-881a-aeddd51158c0"}
-v1 claim wechat_linked        -> 400 {"code":400,"msg":"task not completed","requestId":"33f0953f-fc92-420b-8ce2-d000b71cebed"}
-v1 claim expert_summoned      -> 400 {"code":400,"msg":"task not completed","requestId":"15777e15-b465-42ea-848e-2ddcef52d3d0"}
-v1 claim template_used        -> 400 {"code":400,"msg":"task not completed","requestId":"84cffc54-85eb-4eec-8ac6-aa54329717cf"}
+v1 claim first_chat           -> 400 {"code":400,"msg":"task not completed","requestId":"fed6267a-870c-4a8e-9260-6d107504b298"}
+v1 claim skill_installed      -> 400 {"code":400,"msg":"task not completed","requestId":"4d1eae9a-4f89-42a3-8b66-86a262a3d730"}
+v1 claim wechat_linked        -> 400 {"code":400,"msg":"task not completed","requestId":"60ca184d-3d23-4b12-b636-550ccfae2e5d"}
+v1 claim expert_summoned      -> 400 {"code":400,"msg":"task not completed","requestId":"f2910868-5256-416c-93c7-798f341a20d7"}
+v1 claim template_used        -> 400 {"code":400,"msg":"task not completed","requestId":"c668b55e-b064-4280-835e-c1daa7556b5e"}
+[6/6] 第四轮：公众号任务/等级徽章/分享奖励等最后一组候选
+POST   /activity/growth/tasks/wb_wechat_oa_subscribe_task/claim -> 400 {"code":400,"msg":"task not completed","requestId":"e12ca288-1b78-4014-9452-146c216841c5"}
+GET    /v1/activity/growth/subscribe-task/status               -> 404 {"error_msg":"404 Route Not Found"}
+
+GET    /v2/activity/growth/subscribe-task                      -> 404 404 page not found
+POST   /v2/activity/growth/subscribe-task/claim                -> 404 404 page not found
+POST   /v1/activity/growth/subscribe-task/claim                -> 404 {"error_msg":"404 Route Not Found"}
+
+POST   /v2/activity/growth/badges/first_chat/claim             -> 404 404 page not found
+POST   /v2/activity/growth/badges/expert_summoned/claim        -> 404 404 page not found
+POST   /activity/growth/level-tasks/first_chat/claim           -> 404 404 page not found
+POST   /activity/growth/heatmap/share                          -> 200 {"code":0,"msg":"OK","requestId":"1bbcf30a-d230-402e-8c80-211c88e2c294","data":{"share_uuid":"U2TSsXbmvMpDomjMZgRGtMZppbJsE0huLEVvyNepQ0zbhMg-j-nz9wuE7JFrmsMk","share_url":"/activity/growth/heatmap/share/U2TSsXbmvMpDomjMZgRGtMZppbJsE0huLEVvyNepQ0zbhM
+GET    /v2/activity/growth/claimable                           -> 404 404 page not found
+GET    /v2/activity/growth/daily-bonus                         -> 404 404 page not found
+POST   /activity/growth/daily-bonus/claim                      -> 404 404 page not found
 RUN_RC=0
