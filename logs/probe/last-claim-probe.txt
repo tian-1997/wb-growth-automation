@@ -1,0 +1,26 @@
+---- 菜单弹窗发放口探测（2026-10-19）----
+[1/2] GET 状态端点（零副作用）
+GET  /v2/activity/growth/daily/status -> 404 404 page not found
+GET  /activity/growth/daily/status -> 404 404 page not found
+GET  /v2/activity/growth/checkin/status -> 404 404 page not found
+GET  /activity/growth/checkin/status -> 404 404 page not found
+GET  /v2/activity/growth/daily-task/status -> 404 404 page not found
+GET  /v2/activity/growth/daily-reward/status -> 404 404 page not found
+GET  /v2/activity/growth/sign/status -> 404 404 page not found
+[2/2] POST claim 端点（今日已领，命中即现「已领取」类错误）
+POST /activity/growth/checkin -> 404 404 page not found
+POST /v2/activity/growth/checkin -> 404 404 page not found
+POST /activity/growth/daily/claim -> 404 404 page not found
+POST /v2/activity/growth/daily/claim -> 404 404 page not found
+POST /activity/growth/daily-checkin/claim -> 404 404 page not found
+POST /v2/activity/growth/daily-checkin/claim -> 404 404 page not found
+POST /activity/growth/daily-reward/claim -> 404 404 page not found
+POST /v2/activity/growth/daily-reward/claim -> 404 404 page not found
+POST /activity/growth/subscribe-task/claim -> 404 404 page not found
+POST /v2/activity/growth/subscribe-task/claim -> 404 404 page not found
+POST /activity/growth/tasks/daily_checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"ff87de1e-7c2c-42f4-b847-f35a12c17b8f"}
+POST /activity/growth/tasks/checkin/claim -> 400 {"code":400,"msg":"task not completed","requestId":"69d2b259-3691-42ae-8624-6a0232684e59"}
+POST /activity/growth/tasks/daily/claim -> 400 {"code":400,"msg":"task not completed","requestId":"48a0e0b8-db60-4138-aba7-483e7e64523d"}
+POST /activity/growth/sign/claim -> 404 404 page not found
+POST /v2/activity/growth/sign/claim -> 404 404 page not found
+RUN_RC=0
