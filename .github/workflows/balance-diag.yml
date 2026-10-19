@@ -1,0 +1,90 @@
+name: balance-diag
+
+# 只读诊断：核对「旅行/任务领的积分（Credit）」和界面上的「总剩余积分」是不是同一个池子。
+# 调用成长体系只读接口 + 主账户 billing/meter 余额接口（前端 usercenter 同款 POST），
+# 不领、不派、不推企业微信。改动本文件并推送即跑一次；也可在 Actions 页手动触发。
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/balance-diag.yml']
+  workflow_dispatch: {}
+
+concurrency:
+  group: balance-diag
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve Python (command -v, no hardcoded version)
+        id: py
+        run: |
+          PY=$(command -v python3 || command -v python || true)
+          if [ -z "$PY" ]; then echo "::error::python3/python not found"; exit 1; fi
+          echo "python=$PY" >> "$GITHUB_OUTPUT"
+          "$PY" --version
+
+      - name: Renew access token (seamless, optional)
+        id: renew
+        continue-on-error: true
+        env:
+          WB_REFRESH_TOKEN: ${{ secrets.WB_REFRESH_TOKEN }}
+          WB_GH_PAT: ${{ secrets.WB_GH_PAT }}
+        run: |
+          if [ -z "${WB_REFRESH_TOKEN:-}" ]; then
+            echo "未配置 WB_REFRESH_TOKEN，跳过无感续签，回退 WB_TOKEN"
+            exit 0
+          fi
+          set +e
+          AT=$("${{ steps.py.outputs.python }}" scripts/renew_token.py)
+          RC=$?
+          set -e
+          if [ "$RC" -eq 0 ] || [ "$RC" -eq 2 ]; then
+            echo "::add-mask::$AT"
+            echo "WB_TOKEN=$AT" >> "$GITHUB_ENV"
+            if [ "$RC" -eq 2 ]; then
+              echo "::warning::续签成功但 secret 写回失败，自动续期链约 60 天后会断"
+            fi
+          else
+            echo "::warning::token 续签失败，本次回退到 WB_TOKEN"
+            exit 1
+          fi
+
+      - name: Run read-only balance diagnostic
+        env:
+          WB_TOKEN: ${{ env.WB_TOKEN || secrets.WB_TOKEN }}
+          # 诊断不推送；WB_DIAG_ONLY 只读状态不领不派；WB_PROBE_ENDPOINTS 打开余额探测
+          WB_WECOM_WEBHOOK: ""
+          WB_DIAG_ONLY: "1"
+          WB_PROBE_ENDPOINTS: "1"
+          WB_DEBUG_RAW: "1"
+        run: |
+          set +e
+          "${{ steps.py.outputs.python }}" scripts/daily_growth.py > diag-output.txt 2>&1
+          RUN_RC=$?
+          set -e
+          cat diag-output.txt
+          echo "RUN_RC=$RUN_RC" | tee -a diag-output.txt
+          exit "$RUN_RC"
+
+      - name: Publish diag record (redacted)
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p logs/diag
+          cp diag-output.txt logs/diag/last-diag.txt
+          git config user.name "WorkBuddy CI"
+          git config user.email "noreply@local"
+          git add logs/diag/last-diag.txt
+          git diff --cached --quiet && { echo "diag record 无变化，跳过提交"; exit 0; }
+          git -c user.name="WorkBuddy CI" -c user.email="noreply@local" \
+            commit -m "ci: diag record $(date -u '+%Y-%m-%d %H:%M UTC')" || exit 0
+          git pull --rebase origin main >/dev/null 2>&1 || true
+          git push origin HEAD:main || echo "::warning::diag record 推送失败（不影响本次诊断结果）"

@@ -220,6 +220,19 @@ def do_travel():
     result["status"] = redact(sd)
     result["ok"] = True
 
+    # 诊断模式（WB_DIAG_ONLY=1）：只读状态与旅行记录，不领不派，
+    # 配合 WB_PROBE_ENDPOINTS=1 输出各余额池，用于核对积分池归属。
+    if os.environ.get("WB_DIAG_ONLY") == "1":
+        result["lines"].append(
+            "派猫猫：诊断模式只读（state=%s, daily_limit_reached=%s, reward_credit=%s）。"
+            % (state, daily_limit, reward))
+        try:
+            _, recs = api("GET", "/activity/growth/buddy/travel/records")
+            result["records_raw"] = redact(recs)
+        except Exception:  # noqa: BLE001
+            pass
+        return result
+
     # 1) 先领：猫已到家(arrived) -> claim
     if state == "arrived":
         try:
@@ -413,7 +426,9 @@ def main():
     renew_warn = os.environ.get("WB_RENEW_WARN") == "1"
     force_push = os.environ.get("WB_FORCE_PUSH") == "1"
     actionable = bool(acts) or not checkin.get("ok") or not travel.get("ok") or renew_warn
-    if actionable or force_push:
+    if os.environ.get("WB_DIAG_ONLY") == "1":
+        log("[wecom] 诊断模式，不推送。")
+    elif actionable or force_push:
         push_wecom(checkin, travel)
     else:
         log("[wecom] 本次无实质动作（旅行中/今日已派过），跳过推送。")
@@ -435,23 +450,31 @@ def main():
         # 结论：lottery/summary、lottery/prizes、buddy/info、badges、tasks、
         # redeem/summary、plans-usage 均不返回积分余额——增长体系没有暴露
         # 积分余额的只读接口，到账验证因此以 travel/records 的 claimed_at 为准。
+        # 2026-10-19 追加 billing/meter/*（主账户「套餐积分」池）：前端 usercenter
+        # 用 POST + JSON body 调用，GET 会 405；旅行领的积分（Credit）按官方活动
+        # 规则"实时到账至用户的积分账户"，与套餐池是同一个账户还是两个池子，
+        # 由本探测的返回与界面显示值比对判定。
         # 默认关闭；需要时在环境里设 WB_PROBE_ENDPOINTS=1 再跑。
         if os.environ.get("WB_PROBE_ENDPOINTS") == "1":
             log("---- 积分余额端点探测 ----")
-            for path in (
-                "/activity/growth/lottery/summary",
-                "/activity/growth/lottery/prizes",
-                "/activity/growth/buddy/info",
-                "/v2/activity/growth/badges",
-                "/v2/activity/growth/tasks",
-                "/profile/assets/plans-usage/standard",
+            for method, path, body in (
+                ("GET", "/activity/growth/lottery/summary", None),
+                ("GET", "/activity/growth/lottery/prizes", None),
+                ("GET", "/activity/growth/buddy/info", None),
+                ("GET", "/v2/activity/growth/badges", None),
+                ("GET", "/v2/activity/growth/tasks", None),
+                ("GET", "/profile/assets/plans-usage/standard", None),
+                ("POST", "/billing/meter/get-user-resource-summary", {}),
+                ("POST", "/billing/meter/get-user-resource", {}),
+                ("POST", "/billing/meter/get-user-resource-free-packages", {}),
+                ("POST", "/billing/meter/get-user-resource-paid-packages", {}),
             ):
                 try:
-                    code, resp = api("GET", path, timeout=15)
-                    log("探测 %s -> HTTP %s %s" % (path, code,
-                        json.dumps(redact(resp), ensure_ascii=False)[:400]))
+                    code, resp = api(method, path, body=body, timeout=15)
+                    log("探测 %s %s -> HTTP %s %s" % (method, path, code,
+                        json.dumps(redact(resp), ensure_ascii=False)[:800]))
                 except Exception as e:  # noqa: BLE001
-                    log("探测 %s -> 失败 %s" % (path, str(e)[:120]))
+                    log("探测 %s %s -> 失败 %s" % (method, path, str(e)[:120]))
 
     # 结论：签到状态获取成功即算成功（猫猫成败不影响）
     return 0 if checkin.get("ok") else 1
