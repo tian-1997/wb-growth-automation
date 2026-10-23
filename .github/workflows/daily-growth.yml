@@ -20,7 +20,7 @@ on:
 
 # 本地 fallback 标记：本机定时任务取不到 token（如 App 升级加密登录态）时，
 # 本机 automation 会更新这行并推送来触发云端运行。不要手动删这行。
-# last-local-fallback: 2026-10-23 15:06:14
+# last-local-fallback: 2026-10-23 20:06:29
 
 # 2026-10-19 10:0x：新增「任务奖励捡漏」（do_tasks：领取 accept_status=completed
 # 的任务奖励），本次改动一并触发即时运行做验收（会派今天的猫 + 领 expert_5 奖励）。
